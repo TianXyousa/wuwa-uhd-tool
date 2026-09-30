@@ -1,7 +1,7 @@
 {
-  "date": "2026-09-30",
-  "version": "1.0.0",
-  "scope": "offline fixtures and read-only real installation checks",
+  "date": "2026-10-01",
+  "version": "1.0.1",
+  "scope": "offline fixture tests and GUI smoke test for 1.0.1; prior real resource verification; user-reported WeGame runtime test",
   "source": {
     "ok": true,
     "tests_run": 36,
@@ -43,10 +43,10 @@
       "test_rollback_does_not_require_network_or_old_core",
       "test_server_ignores_range_restarts_safely",
       "test_space_check_prevents_download",
-      "test_uhd_launch_uses_original_executable_and_no_shell",
       "test_unknown_cache_file_prevents_clear",
       "test_untrusted_urls_rejected",
-      "test_version_mismatch_stops_before_writes"
+      "test_version_mismatch_stops_before_writes",
+      "test_wegame_instructions_do_not_launch_or_modify_game"
     ]
   },
   "frozen_exe": {
@@ -90,10 +90,10 @@
       "test_rollback_does_not_require_network_or_old_core",
       "test_server_ignores_range_restarts_safely",
       "test_space_check_prevents_download",
-      "test_uhd_launch_uses_original_executable_and_no_shell",
       "test_unknown_cache_file_prevents_clear",
       "test_untrusted_urls_rejected",
-      "test_version_mismatch_stops_before_writes"
+      "test_version_mismatch_stops_before_writes",
+      "test_wegame_instructions_do_not_launch_or_modify_game"
     ]
   },
   "frozen_ui": {
@@ -106,28 +106,53 @@
       1155
     ]
   },
-  "real_install_read_only": {
+  "prior_real_resource_verification": {
+    "tool_version": "1.0.0",
+    "date": "2026-10-01",
+    "phase": "after rollback and restore, before user gameplay test",
     "ok": true,
-    "inspection": {
-      "version": "3.7.0",
-      "status": "not_installed",
-      "files": 100,
-      "download_bytes": 66036274508,
-      "online_verified": true,
-      "target_exists": false,
-      "cache_exists": false,
-      "runtime_verified": false
+    "original_sha256_matched": 2964,
+    "uhd_md5_matched": 100,
+    "uhd_bytes": 66036274508,
+    "rollback_restore_verified": true,
+    "rollback_restore_interface": "unchanged tool backend",
+    "published_gui_pause_resume_verified": true,
+    "game_launched_by_agent": false
+  },
+  "user_reported_runtime_test": {
+    "date": "2026-10-01",
+    "source": "user report in this session",
+    "scope": "one local WeGame installation",
+    "launch_entry": "WeGame",
+    "launch_parameter": "-krqlv=uhd",
+    "uhd_startup_success": true,
+    "extreme_graphics_selection_success": true,
+    "automated_e2e_verified": false,
+    "all_hardware_compatibility_verified": false,
+    "later_hotfix_and_video_compatibility_verified": false
+  },
+  "known_issues": [
+    {
+      "affected_version": "1.0.0",
+      "issue": "Direct EXE launch produced a parameter error reported by the user; WeGame launch succeeded.",
+      "root_cause_confirmed": false,
+      "change_in_1_0_1": "Direct launch removed; show WeGame instructions instead."
+    },
+    {
+      "observed_version": "1.0.0",
+      "issue": "Long-running GUI download hung and exited; Windows reported AppHangXProcB1.",
+      "backend_resume_completed": true,
+      "root_cause_confirmed": false,
+      "fixed_in_1_0_1": false
     }
-  },
-  "final_real_install_observation": {
-    "uhd_directory_exists": false,
-    "tool_cache_exists": false,
-    "game_launched_by_this_task": false
-  },
+  ],
   "independent_review": {
-    "initial_code_security": "no blockers reported",
-    "architecture": "unavailable due to model service error",
-    "publication_delta": "review request unavailable due to service rate limit",
-    "full_independent_approval_claimed": false
+    "this_version_reviewed": false,
+    "prior_1_0_0": {
+      "initial_code_security": "no blockers reported",
+      "architecture": "unavailable due to model service error",
+      "publication_delta": "review request unavailable due to service rate limit",
+      "full_independent_approval_claimed": false
+    }
   }
 }

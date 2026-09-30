@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import argparse
 from pathlib import Path
 import shutil
+import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-VERSION = "1.0.0"
+sys.path.insert(0, str(ROOT))
+from wuwa_uhd import __version__ as VERSION
 
 
 def archive(path, files):
@@ -21,13 +24,18 @@ def archive(path, files):
 
 
 def main():
-    DIST.mkdir(exist_ok=True)
-    exe = DIST / "WuwaUHDTool.exe"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--exe", type=Path, default=DIST / "WuwaUHDTool.exe")
+    parser.add_argument("--output", type=Path, default=DIST)
+    args = parser.parse_args()
+    output = args.output
+    output.mkdir(parents=True, exist_ok=True)
+    exe = args.exe
     if not exe.is_file():
         raise RuntimeError("Build and validate the executable first")
     for name in ("README.md", "VALIDATION.md"):
-        shutil.copyfile(ROOT / name, DIST / name)
-    portable = DIST / f"WuwaUHDTool-{VERSION}-Windows.zip"
+        shutil.copyfile(ROOT / name, output / name)
+    portable = output / f"WuwaUHDTool-{VERSION}-Windows.zip"
     # Include the linked preview and public validation alongside the README.
     portable_names = ["README.md", "VALIDATION.md", "validation/tool.json", "media/assets/cover.jpg", "media/README.md", "media/BILIBILI.md", "media/validation.json", "media/assets/demo-proof.json"]
     archive(portable, [(exe, exe.name)] + [(ROOT / name, name) for name in portable_names if (ROOT / name).is_file()])
@@ -41,10 +49,10 @@ def main():
             if path.suffix.lower() not in {".py", ".json", ".ico", ".png", ".jpg", ".md", ".txt"}:
                 continue
             source_files.append((path, relative.as_posix()))
-    archive(DIST / f"WuwaUHDTool-{VERSION}-Source.zip", source_files)
-    files = [exe, portable, DIST / f"WuwaUHDTool-{VERSION}-Source.zip"]
+    archive(output / f"WuwaUHDTool-{VERSION}-Source.zip", source_files)
+    files = [exe, portable, output / f"WuwaUHDTool-{VERSION}-Source.zip"]
     sums = "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n" for p in files)
-    (DIST / "SHA256SUMS.txt").write_text(sums, encoding="ascii")
+    (output / "SHA256SUMS.txt").write_text(sums, encoding="ascii")
     print(sums, end="")
 
 

@@ -15,6 +15,15 @@ BG = "#f4f6fa"
 INK = "#172438"
 MUTED = "#59677b"
 ACCENT = "#2563eb"
+WEGAME_LAUNCH_GUIDE = (
+    "1. 等待 UHD 资源下载并校验完成。\n"
+    "2. 打开 WeGame 中鸣潮的启动参数设置，保留原有参数，追加：\n\n"
+    "    -krqlv=uhd\n\n"
+    "3. 保存后，从 WeGame 启动鸣潮，再在游戏中选择极致画质。\n\n"
+    "用户已实测此方式可启动 UHD 并切换极致画质。\n"
+    "回退到 HD 后，请在 WeGame 中移除 -krqlv=uhd，再从 WeGame 启动。\n"
+    "工具不会自动修改 WeGame 设置；游戏可能继续下载热更新和视频。"
+)
 
 
 class App:
@@ -74,8 +83,8 @@ class App:
         tk.Label(card, textvariable=self.summary, bg="white", fg=MUTED, font=("Microsoft YaHei UI", 10), anchor="w", justify="left", wraplength=int(830*self.scale)).pack(fill="x", pady=(6, 0))
         info = (
             "下载全部校验成功后，仅添加 Client/Content/UHD。原程序、HD 包及 WeGame 渠道配置不改写。\n"
-            "“回退到 HD”会将本工具添加的 UHD 移回缓存；回退后仍按原来的 WeGame 方式启动。\n"
-            "WeGame 下 UHD 的登录与画质效果尚未实测。UHD 启动需单独确认，游戏可能继续下载热更新和视频。"
+            "资源就绪后，在 WeGame 的鸣潮启动参数中追加 -krqlv=uhd，再从 WeGame 启动并选择极致画质。\n"
+            "“回退到 HD”会将 UHD 移回缓存；回退后请在 WeGame 移除上述参数。详细步骤见“WeGame 启动说明”。"
         )
         ttk.Label(outer, text=info, style="Muted.TLabel", wraplength=int(850*self.scale), justify="left").pack(anchor="w", pady=(0, 14))
         actions = ttk.Frame(outer)
@@ -90,14 +99,14 @@ class App:
         self.pause_button.pack(side="right")
         secondary = ttk.Frame(outer)
         secondary.pack(fill="x", pady=(9, 14))
-        self.launch_button = ttk.Button(secondary, text="以 UHD 启动（待验证）", command=self.confirm_launch)
-        self.launch_button.pack(side="left", padx=(0, 8))
+        self.wegame_button = ttk.Button(secondary, text="WeGame 启动说明", command=self.show_wegame_instructions)
+        self.wegame_button.pack(side="left", padx=(0, 8))
         self.cache_button = ttk.Button(secondary, text="打开缓存目录", command=self.open_cache)
         self.cache_button.pack(side="left", padx=(0, 8))
         self.clear_button = ttk.Button(secondary, text="清理已回退缓存", command=self.confirm_clear)
         self.clear_button.pack(side="left")
         self.buttons = [self.check_button, self.apply_button, self.rollback_button,
-                        self.launch_button, self.cache_button, self.clear_button, self.browse_button]
+                        self.wegame_button, self.cache_button, self.clear_button, self.browse_button]
         self.bar = ttk.Progressbar(outer, maximum=100, mode="determinate")
         self.bar.pack(fill="x")
         ttk.Label(outer, textvariable=self.progress_text, style="Muted.TLabel", wraplength=int(850*self.scale)).pack(anchor="w", pady=(6, 12))
@@ -151,7 +160,7 @@ class App:
         self.path_entry.configure(state="disabled")
         self.pause_button.configure(state="normal" if action in {"apply", "inspect"} else "disabled")
         labels = {"inspect": "正在只读检查", "apply": "正在下载 / 校验 UHD", "rollback": "正在回退",
-                  "clear_cache": "正在清理缓存", "launch_uhd": "正在检查启动条件"}
+                  "clear_cache": "正在清理缓存"}
         self.status.set(labels[action])
         self.append(labels[action])
         self.bar.configure(mode="indeterminate")
@@ -217,35 +226,31 @@ class App:
                 self.append("下载/回退前需关闭：" + "、".join(result["running"]))
             self.progress_text.set("只读检查完成；未修改游戏文件。")
         elif action == "apply":
-            self.status.set("UHD 基础资源已添加 · 游戏内效果待验证")
+            self.status.set("UHD 基础资源已添加 · 请通过 WeGame 启动")
             self.bar["value"] = 100
             self.progress_text.set("100 个文件已校验。原启动方式保留；工具没有自动启动游戏。")
-            messagebox.showinfo("资源已添加", "UHD 基础资源已下载并校验。\n\n原 HD 与 WeGame 渠道文件保留。点击“以 UHD 启动”可单独尝试；WeGame 登录和 UHD 效果尚未验证。", parent=self.root)
+            messagebox.showinfo("资源已添加 · WeGame 启动步骤", "UHD 基础资源已下载并校验，原 HD 与渠道文件保留。\n\n" + WEGAME_LAUNCH_GUIDE, parent=self.root)
         elif action == "rollback":
-            self.status.set("已回退 / 无需回退 · 按原方式启动 HD")
-            self.progress_text.set("UHD 缓存保留，未释放其占用空间。需要时可恢复，或清理缓存。")
+            self.status.set("已回退 / 无需回退 · 请移除 WeGame 中的 UHD 参数")
+            self.progress_text.set("请在 WeGame 移除 -krqlv=uhd 后启动 HD。UHD 缓存保留，需要时可恢复或清理。")
         elif action == "clear_cache":
             self.status.set("缓存已清理 · 原游戏保持不变")
             self.progress_text.set(f"释放约 {result['removed_bytes']/2**30:.2f} GiB。")
-        else:
-            self.status.set("已请求 UHD 启动 · 请在游戏中确认")
-            self.append("启动请求已发送；这不代表登录或极致画质已验证成功。")
 
     def confirm_apply(self):
         if messagebox.askokcancel("下载并添加 UHD", "将从库洛官方服务器下载约 66.04 GB 基础资源。\n\n仅在全部校验通过后添加 UHD 目录，不覆盖 HD、程序或 WeGame 渠道文件，也不自动启动游戏。\n\n可以暂停续传；安装后可以回退。继续？", parent=self.root):
             self.start("apply")
 
     def confirm_rollback(self):
-        if messagebox.askokcancel("回退到 HD", "请先退出游戏。\n\n仅将本工具添加的 UHD 目录移回缓存，保留以便恢复。原 HD 与原来的 WeGame 启动方式不改动。\n\n游戏启动后产生的画质设置、热更新、视频及存档不在回退范围内。继续？", parent=self.root):
+        if messagebox.askokcancel("回退到 HD", "请先退出游戏。\n\n仅将本工具添加的 UHD 目录移回缓存，保留以便恢复。原 HD 与渠道文件不改动。\n\n回退后请在 WeGame 中移除 -krqlv=uhd，再从 WeGame 启动；工具不会自动修改启动参数。\n\n游戏启动后产生的画质设置、热更新、视频及存档不在回退范围内。继续？", parent=self.root):
             self.start("rollback")
 
     def confirm_clear(self):
         if messagebox.askokcancel("清理缓存并释放空间", "此操作只清理本工具的下载 / 已回退缓存。\n\n清理后恢复 UHD 需要重新下载；已启用的 UHD 必须先回退。原游戏文件不删除。\n\n确定清理？", parent=self.root):
             self.start("clear_cache")
 
-    def confirm_launch(self):
-        if messagebox.askokcancel("尝试 UHD 启动", "将用原游戏程序加上 -krqlv=uhd 参数启动，不修改快捷方式或 WeGame 配置。\n\nWeGame 登录和 UHD 效果尚未实测。请保持 WeGame 客户端登录；如无法登录或出现异常，请退出后回退，不要改渠道配置。\n\n游戏可能下载后续资源并修改自身设置。现在启动？", parent=self.root):
-            self.start("launch_uhd")
+    def show_wegame_instructions(self):
+        messagebox.showinfo("通过 WeGame 启动 UHD", WEGAME_LAUNCH_GUIDE, parent=self.root)
 
     def pause(self):
         self.cancel.set()

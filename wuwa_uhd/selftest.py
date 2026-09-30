@@ -399,16 +399,25 @@ class AcceptanceTests(unittest.TestCase):
                 validate_url(url)
 
     def test_no_automatic_launch_during_apply_or_rollback(self):
-        with mock.patch("wuwa_uhd.core.subprocess.Popen") as popen:
+        with mock.patch("subprocess.Popen") as popen:
             self.m.apply()
             self.m.rollback()
             popen.assert_not_called()
 
-    def test_uhd_launch_uses_original_executable_and_no_shell(self):
-        self.m.apply()
-        with mock.patch("wuwa_uhd.core.subprocess.Popen") as popen:
-            self.m.launch_uhd()
-            popen.assert_called_once_with([str(self.root / "Wuthering Waves.exe"), "-krqlv=uhd"], cwd=self.root)
+    def test_wegame_instructions_do_not_launch_or_modify_game(self):
+        from .gui import App
+        app = App.__new__(App)
+        app.root = object()
+        app.start = mock.Mock()
+        before = self.snapshot()
+        with mock.patch("wuwa_uhd.gui.messagebox.showinfo") as showinfo, mock.patch("subprocess.Popen") as popen:
+            app.show_wegame_instructions()
+            showinfo.assert_called_once()
+            self.assertIn("-krqlv=uhd", showinfo.call_args.args[1])
+            self.assertIn("WeGame", showinfo.call_args.args[1])
+            popen.assert_not_called()
+        app.start.assert_not_called()
+        self.assertEqual(before, self.snapshot())
 
 
 def run_tests():

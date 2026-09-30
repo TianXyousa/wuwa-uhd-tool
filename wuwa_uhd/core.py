@@ -12,7 +12,6 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
-import subprocess
 import threading
 import time
 import urllib.error
@@ -593,7 +592,7 @@ class Manager:
             # Same-volume directory rename: no copying over existing game files.
             os.rename(self.cache, self.target)
             self.save_state(state, "active")
-            self.tell("UHD 基础资源已添加；原 HD、程序及渠道文件未改写。游戏内效果尚待验证。")
+            self.tell("UHD 基础资源已添加；原 HD、程序及渠道文件未改写。请在 WeGame 设置 -krqlv=uhd 后启动。")
             return {"status": "active", "files": len(self.entries), "bytes": self.total}
 
     def rollback(self):
@@ -623,7 +622,7 @@ class Manager:
             no_links(self.cache)
             os.rename(self.target, self.cache)
             self.save_state(state, "parked")
-            self.tell("已回退：UHD 已移回缓存。请按原来的 WeGame 方式启动 HD。")
+            self.tell("已回退：UHD 已移回缓存。请在 WeGame 移除 -krqlv=uhd，再从 WeGame 启动 HD。")
             return {"status": "parked", "changed": True, "cache_kept": True}
 
     def clear_cache(self):
@@ -655,22 +654,6 @@ class Manager:
             self.save_state(state, "parked")
             self.tell(f"已清理缓存，释放约 {removed / 2**30:.2f} GiB。原游戏未改动。")
             return {"status": "parked", "removed_bytes": removed}
-
-    def launch_uhd(self):
-        self.check_root()
-        self.idle()
-        state = self.read_state()
-        if not state or state["status"] != "active":
-            raise ToolError("请先完整下载并启用 UHD。")
-        with exclusive_lock(self.work / "operation.lock"):
-            self.owned(self.target, state)
-            for entry in self.entries:
-                path = no_links(self.target / entry["name"])
-                if not path.is_file() or path.stat().st_size != entry["size"]:
-                    raise ToolError("UHD 文件缺失或大小变化，请勿启动。")
-            subprocess.Popen([str(self.root / "Wuthering Waves.exe"), "-krqlv=uhd"], cwd=self.root)
-        return {"status": "launch_requested", "runtime_verified": False}
-
 
 def detect_game():
     if os.name == "nt":
