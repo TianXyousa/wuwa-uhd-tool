@@ -4,11 +4,11 @@
 
 **资源添加完成后，请在 WeGame 的鸣潮启动参数中追加 `-krqlv=uhd`，再从 WeGame 启动。用户已于 2026-10-01 在本机实测 UHD 启动与极致画质切换成功。** 该结果来自用户实际测试，验证范围见 [验证记录](VALIDATION.md)。
 
-[下载 Windows 便携包](https://github.com/TianXyousa/wuwa-uhd-tool/releases/tag/v1.0.1) · [下载旧版流程演示视频](https://github.com/TianXyousa/wuwa-uhd-tool/releases/download/v1.0.0/WuwaUHDTool-Intro-1080p.mp4) · [验证记录](VALIDATION.md)
+[下载 Windows 便携包](https://github.com/TianXyousa/wuwa-uhd-tool/releases/tag/v1.0.1) · [下载新版介绍视频](https://github.com/TianXyousa/wuwa-uhd-tool/releases/download/v1.0.1/WuwaUHDTool-Intro-1080p.mp4) · [验证记录](VALIDATION.md)
 
-![v1.0.0 流程演示封面；最新启动方法与实测状态见正文](media/assets/cover.jpg)
+![UHD 资源工具：WeGame 启动指引与约 7.9 GB 额外热更新](media/assets/cover.jpg)
 
-介绍视频约 2 分 54 秒，含中文 AI 配音和字幕。它记录的是 v1.0.0 的临时模拟目录演示，视频中的旧启动入口及“实机待验证”表述以本文最新说明为准。视频、字幕及封面保留在 v1.0.0 Release；制作方法见 [media/README.md](media/README.md)。仓库不包含游戏程序或资源包。
+新版介绍视频约 3 分 08 秒，含中文 AI 配音和字幕，已加入 WeGame 启动参数、回退时移除参数，以及**启动后另需约 7.9 GB 素材热更新**的说明。7.9 GB 来自本次用户反馈，实际大小以游戏内提示为准。资源操作画面沿用已标注的 v1.0.0 临时模拟目录截图。新版视频、字幕及封面位于 v1.0.1 Release；制作方法见 [media/README.md](media/README.md)。仓库不包含游戏程序或资源包。
 
 ## 使用
 
@@ -23,7 +23,7 @@
    -krqlv=uhd
    ```
 
-7. 从 **WeGame 启动鸣潮**，在游戏中选择极致画质。工具负责资源添加与回退，启动参数由用户在 WeGame 中设置。
+7. 从 **WeGame 启动鸣潮**，完成游戏内资源更新后选择极致画质。根据本次用户反馈，启动后另需热更新约 **7.9 GB 素材**，不包含在上述 66.04 GB 基础包中，实际大小以游戏内提示为准。工具负责资源添加与回退，启动参数由用户在 WeGame 中设置。
 
 v1.0.1 已将原来的直接启动按钮改为说明入口。用户曾反馈 v1.0.0 直接启动出现“参数异常”，改由 WeGame 携带上述参数启动后成功；该报错的具体内部原因尚未确认。
 
