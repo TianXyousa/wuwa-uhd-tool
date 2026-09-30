@@ -36,17 +36,16 @@ def main():
     for name in ("README.md", "VALIDATION.md"):
         shutil.copyfile(ROOT / name, output / name)
     portable = output / f"WuwaUHDTool-{VERSION}-Windows.zip"
-    # Include the linked preview and public validation alongside the README.
-    portable_names = ["README.md", "VALIDATION.md", "validation/tool.json", "media/assets/cover.jpg", "media/README.md", "media/BILIBILI.md", "media/validation.json", "media/assets/demo-proof.json"]
+    portable_names = ["README.md", "VALIDATION.md", "validation/tool.json"]
     archive(portable, [(exe, exe.name)] + [(ROOT / name, name) for name in portable_names if (ROOT / name).is_file()])
     names = ["main.py", "build.ps1", "README.md", "VALIDATION.md", ".gitignore", ".gitattributes", ".github/workflows/offline-tests.yml", "scripts/package_release.py"]
     source_files = [(ROOT / name, name) for name in names]
-    for folder in ("wuwa_uhd", "validation", "media"):
+    for folder in ("wuwa_uhd", "validation"):
         for path in (ROOT / folder).rglob("*"):
             relative = path.relative_to(ROOT)
-            if not path.is_file() or any(part in {"__pycache__", "audio", "render", "output"} for part in relative.parts):
+            if not path.is_file() or "__pycache__" in relative.parts:
                 continue
-            if path.suffix.lower() not in {".py", ".json", ".ico", ".png", ".jpg", ".md", ".txt"}:
+            if path.suffix.lower() not in {".py", ".json", ".ico"}:
                 continue
             source_files.append((path, relative.as_posix()))
     archive(output / f"WuwaUHDTool-{VERSION}-Source.zip", source_files)

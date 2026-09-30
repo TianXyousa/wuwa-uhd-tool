@@ -4,15 +4,13 @@
 
 **资源添加完成后，请在 WeGame 的鸣潮启动参数中追加 `-krqlv=uhd`，再从 WeGame 启动。用户已于 2026-10-01 在本机实测 UHD 启动与极致画质切换成功。** 该结果来自用户实际测试，验证范围见 [验证记录](VALIDATION.md)。
 
-[下载 Windows 便携包](https://github.com/TianXyousa/wuwa-uhd-tool/releases/tag/v1.0.1) · [下载新版介绍视频](https://github.com/TianXyousa/wuwa-uhd-tool/releases/download/v1.0.1/WuwaUHDTool-Intro-1080p.mp4) · [验证记录](VALIDATION.md)
+[下载源码](https://github.com/TianXyousa/wuwa-uhd-tool/archive/refs/heads/main.zip) · [验证记录](VALIDATION.md)
 
-![UHD 资源工具：WeGame 启动指引与约 7.9 GB 额外热更新](media/assets/cover.jpg)
-
-新版介绍视频约 3 分 08 秒，含中文 AI 配音和字幕，已加入 WeGame 启动参数、回退时移除参数，以及**启动后另需约 7.9 GB 素材热更新**的说明。7.9 GB 来自本次用户反馈，实际大小以游戏内提示为准。资源操作画面沿用已标注的 v1.0.0 临时模拟目录截图。新版视频、字幕及封面位于 v1.0.1 Release；制作方法见 [media/README.md](media/README.md)。仓库不包含游戏程序或资源包。
+仓库提供程序源码、构建脚本、测试和必要说明。需要 Windows 单文件程序时，可在本地运行 `build.ps1` 构建。
 
 ## 使用
 
-1. 解压便携包，双击 `WuwaUHDTool.exe`。无需安装 Python，无需管理员权限。
+1. 使用 Python 3.12，在解压后的源码目录运行 `python main.py`。也可按下方步骤在本地构建后运行 `dist/WuwaUHDTool.exe`。无需管理员权限。
 2. 选择游戏根目录：应包含 `Client`、`Engine` 和 `Wuthering Waves.exe`。默认尝试识别本机 WeGame 安装。
 3. 点击 **只读检查**。核对游戏核心程序的 MD5、官方当前资源索引和可用空间。此步骤不下载游戏包、不创建缓存、不修改游戏。
 4. 退出游戏及库洛更新程序，点击 **下载 / 恢复 UHD**。首次约需 **66,036,274,508 字节（66.04 GB / 61.50 GiB）**，另预留至少 2 GiB。后续热更新和 UHD 视频不包含在此数字中。
@@ -87,4 +85,4 @@ python main.py --inspect '游戏根目录' --offline --report inspect-report.jso
 
 `--self-test` 在新建临时目录中模拟下载、续传、异常和回退，不访问真实游戏或网络。正常界面打开仅尝试定位游戏目录，文件检查和资源操作需手动点击；工具不启动游戏。
 
-便携包为单文件 Windows GUI 程序。命令行验证使用 `--report` 保存 JSON 结果，因为窗口版 EXE 不附带控制台。源代码包不包含虚拟环境、游戏文件或下载缓存。
+`build.ps1` 在本地生成单文件 Windows GUI 程序及源码 / 便携压缩包，输出位于 `dist/`。命令行验证使用 `--report` 保存 JSON 结果，因为窗口版 EXE 不附带控制台。打包仅包含程序所需文件与说明，输出目录不提交到仓库。

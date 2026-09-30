@@ -6,7 +6,4 @@ __pycache__/
 *.spec
 *-report.json
 ui-preview.png
-media/audio/
-media/render/
-media/output/
-media/voice-check.mp3
+/media/
