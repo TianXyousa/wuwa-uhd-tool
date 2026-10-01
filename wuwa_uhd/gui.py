@@ -21,6 +21,8 @@ WEGAME_LAUNCH_GUIDE = (
     "    -krqlv=uhd\n\n"
     "3. 保存后，从 WeGame 启动鸣潮，再在游戏中选择极致画质。\n\n"
     "用户已实测此方式可启动 UHD 并切换极致画质。\n"
+    "启动后需完成游戏内更新，本机曾提示约 7.9 GB；视频由游戏另行下载。\n"
+    "若已移除 HD 基础资源，请先恢复 HD 备份，再执行回退。\n"
     "回退到 HD 后，请在 WeGame 中移除 -krqlv=uhd，再从 WeGame 启动。\n"
     "工具不会自动修改 WeGame 设置；游戏可能继续下载热更新和视频。"
 )
@@ -69,7 +71,7 @@ class App:
         outer = ttk.Frame(self.root, padding=24)
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text="为鸣潮添加 UHD 资源", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(outer, text="官方下载源  /  保留 HD 与渠道文件  /  支持回退", style="Muted.TLabel").pack(anchor="w", pady=(4, 18))
+        ttk.Label(outer, text="官方下载源  /  HD 备份与恢复  /  支持回退", style="Muted.TLabel").pack(anchor="w", pady=(4, 18))
         ttk.Label(outer, text="游戏目录（包含 Client 和 Wuthering Waves.exe）").pack(anchor="w")
         row = ttk.Frame(outer)
         row.pack(fill="x", pady=(7, 12))
@@ -84,7 +86,7 @@ class App:
         info = (
             "下载全部校验成功后，仅添加 Client/Content/UHD。原程序、HD 包及 WeGame 渠道配置不改写。\n"
             "资源就绪后，在 WeGame 的鸣潮启动参数中追加 -krqlv=uhd，再从 WeGame 启动并选择极致画质。\n"
-            "“回退到 HD”会将 UHD 移回缓存；回退后请在 WeGame 移除上述参数。详细步骤见“WeGame 启动说明”。"
+            "确认 UHD 可玩后，可备份并移除 HD 基础包；恢复 HD 备份后才可回退。视频由游戏另行下载。"
         )
         ttk.Label(outer, text=info, style="Muted.TLabel", wraplength=int(850*self.scale), justify="left").pack(anchor="w", pady=(0, 14))
         actions = ttk.Frame(outer)
@@ -105,8 +107,16 @@ class App:
         self.cache_button.pack(side="left", padx=(0, 8))
         self.clear_button = ttk.Button(secondary, text="清理已回退缓存", command=self.confirm_clear)
         self.clear_button.pack(side="left")
+        hd_actions = ttk.Frame(outer)
+        hd_actions.pack(fill="x", pady=(0, 12))
+        self.remove_hd_button = ttk.Button(hd_actions, text="备份并移除 HD", command=self.confirm_remove_hd)
+        self.remove_hd_button.pack(side="left", padx=(0, 8))
+        self.restore_hd_button = ttk.Button(hd_actions, text="恢复 HD 备份", command=self.confirm_restore_hd)
+        self.restore_hd_button.pack(side="left")
+        ttk.Label(hd_actions, text="仅基础包 · 约 42.57 GiB · 备份请优先选其他磁盘", style="Muted.TLabel").pack(side="left", padx=10)
         self.buttons = [self.check_button, self.apply_button, self.rollback_button,
-                        self.wegame_button, self.cache_button, self.clear_button, self.browse_button]
+                        self.wegame_button, self.cache_button, self.clear_button, self.browse_button,
+                        self.remove_hd_button, self.restore_hd_button]
         self.bar = ttk.Progressbar(outer, maximum=100, mode="determinate")
         self.bar.pack(fill="x")
         ttk.Label(outer, textvariable=self.progress_text, style="Muted.TLabel", wraplength=int(850*self.scale)).pack(anchor="w", pady=(6, 12))
@@ -142,7 +152,7 @@ class App:
             raise ToolError("请先选择游戏目录。")
         return Manager(value, event=self.queue.put, cancel=self.cancel)
 
-    def start(self, action):
+    def start(self, action, *args):
         if self.busy:
             return
         self.cancel = threading.Event()
@@ -152,15 +162,17 @@ class App:
             messagebox.showerror("无法开始", str(exc), parent=self.root)
             return
         self.busy = True
+        self.action = action
         self.started = time.monotonic()
         self.last_progress = (self.started, 0)
         self.speed = 0.0
         for button in self.buttons:
             button.configure(state="disabled")
         self.path_entry.configure(state="disabled")
-        self.pause_button.configure(state="normal" if action in {"apply", "inspect"} else "disabled")
+        self.pause_button.configure(state="normal" if action in {"apply", "inspect", "backup_remove_hd", "restore_hd"} else "disabled")
         labels = {"inspect": "正在只读检查", "apply": "正在下载 / 校验 UHD", "rollback": "正在回退",
-                  "clear_cache": "正在清理缓存"}
+                  "clear_cache": "正在清理缓存", "backup_remove_hd": "正在备份并移除 HD",
+                  "restore_hd": "正在恢复 HD 备份"}
         self.status.set(labels[action])
         self.append(labels[action])
         self.bar.configure(mode="indeterminate")
@@ -168,7 +180,7 @@ class App:
 
         def worker():
             try:
-                result = getattr(manager, action)()
+                result = getattr(manager, action)(*args)
                 self.queue.put({"kind": "done", "action": action, "result": result})
             except Cancelled as exc:
                 self.queue.put({"kind": "stopped", "text": str(exc)})
@@ -185,6 +197,11 @@ class App:
             kind = item["kind"]
             if kind == "log":
                 self.append(item["text"])
+            elif kind == "task_progress":
+                self.bar.stop()
+                self.bar.configure(mode="determinate")
+                self.bar["value"] = 100 * item["current"] / max(1, item["total"])
+                self.progress_text.set(f"{item['phase']} · {item['current']} / {item['total']} 个文件\n{item['file']}")
             elif kind == "progress":
                 self.bar.stop()
                 self.bar.configure(mode="determinate")
@@ -209,8 +226,10 @@ class App:
                     self.append(item["text"])
                     messagebox.showerror("操作已停止", item["text"], parent=self.root)
                 elif kind == "stopped":
-                    self.status.set("已暂停 · 可继续下载")
+                    self.status.set("操作已停止 · 文件与进度保留，请查看操作记录")
                     self.append(item["text"])
+                    if self.action in {"backup_remove_hd", "restore_hd"}:
+                        self.append("HD 复制中断时原件与备份保留。若已进入移除 / 恢复阶段，再次选择同一操作可继续。")
                 else:
                     self.finish(item["action"], item["result"])
         self.root.after(100, self._poll)
@@ -220,8 +239,13 @@ class App:
             names = {"not_installed": "未安装 UHD", "downloading": "存在下载缓存", "ready": "缓存就绪",
                      "installing": "有待恢复的安装", "active": "UHD 已添加", "rolling_back": "有待恢复的回退", "parked": "已回退 / 缓存可复用"}
             self.status.set("检查通过 · " + names.get(result["status"], result["status"]))
-            self.summary.set(f"客户端 3.7.0 核心校验通过 · 官方清单匹配\n需新增 {result['download_bytes']/2**30:.2f} GiB · 当前磁盘可用 {result['free_bytes']/2**30:.1f} GiB")
+            hd = "HD 基础包存在" if result["hd_present"] else "HD 基础包已移除；恢复备份后才能回退"
+            self.summary.set(f"客户端 3.7.0 核心校验通过 · 官方清单匹配\n{hd} · 磁盘可用 {result['free_bytes']/2**30:.1f} GiB")
             self.append("缓存位置：" + result["cache_directory"])
+            if result["hd_backup_directory"]:
+                self.append("HD 备份：" + result["hd_backup_directory"])
+            if result["hd_operation"] in {"removing", "restoring"}:
+                self.status.set("有未完成的 HD 操作 · 请继续移除或恢复")
             if result["running"]:
                 self.append("下载/回退前需关闭：" + "、".join(result["running"]))
             self.progress_text.set("只读检查完成；未修改游戏文件。")
@@ -236,14 +260,43 @@ class App:
         elif action == "clear_cache":
             self.status.set("缓存已清理 · 原游戏保持不变")
             self.progress_text.set(f"释放约 {result['removed_bytes']/2**30:.2f} GiB。")
+        elif action == "backup_remove_hd":
+            self.status.set("HD 基础资源已移除 · 请保留 WeGame 的 UHD 参数")
+            self.bar["value"] = 100
+            space = ("备份在同一磁盘，磁盘总占用基本不变。" if result["same_volume_backup"]
+                     else f"游戏磁盘释放约 {result['freed_game_drive_bytes']/2**30:.2f} GiB。")
+            self.progress_text.set(space + "恢复备份后才可回退到 HD。")
+            self.append("可恢复备份：" + result["backup_directory"])
+            messagebox.showinfo("HD 备份与移除完成", space + "\n\n备份位置：\n" + result["backup_directory"]
+                                + "\n\n请保留 -krqlv=uhd，从 WeGame 启动测试。恢复 HD 时选择这个备份批次文件夹。", parent=self.root)
+        elif action == "restore_hd":
+            self.status.set("HD 备份已恢复并校验 · 现在可以回退 UHD")
+            self.bar["value"] = 100
+            self.progress_text.set("备份保留。需要切回 HD 时，点击“回退到 HD”，再在 WeGame 移除 -krqlv=uhd。")
 
     def confirm_apply(self):
         if messagebox.askokcancel("下载并添加 UHD", "将从库洛官方服务器下载约 66.04 GB 基础资源。\n\n仅在全部校验通过后添加 UHD 目录，不覆盖 HD、程序或 WeGame 渠道文件，也不自动启动游戏。\n\n可以暂停续传；安装后可以回退。继续？", parent=self.root):
             self.start("apply")
 
     def confirm_rollback(self):
-        if messagebox.askokcancel("回退到 HD", "请先退出游戏。\n\n仅将本工具添加的 UHD 目录移回缓存，保留以便恢复。原 HD 与渠道文件不改动。\n\n回退后请在 WeGame 中移除 -krqlv=uhd，再从 WeGame 启动；工具不会自动修改启动参数。\n\n游戏启动后产生的画质设置、热更新、视频及存档不在回退范围内。继续？", parent=self.root):
+        if messagebox.askokcancel("回退到 HD", "请先退出游戏。若已移除 HD，请先“恢复 HD 备份”。\n\n工具会检查 HD 完整性，再将 UHD 移回缓存。HD 缺失或校验失败时不会移动 UHD。\n\n回退后请在 WeGame 中移除 -krqlv=uhd，再从 WeGame 启动；工具不会自动修改启动参数。\n\n游戏启动后产生的画质设置、热更新、视频及存档不在回退范围内。继续？", parent=self.root):
             self.start("rollback")
+
+    def confirm_remove_hd(self):
+        if self.busy:
+            return
+        if not messagebox.askokcancel("备份并移除 HD 基础资源", "请先确认 UHD 能正常游玩，然后退出游戏及更新程序。\n\n工具会先校验 UHD，复制约 45.71 GB 的 HD 基础包并核对 SHA256，全部通过后才移除游戏内的 HD。\n\n请选择游戏目录之外的备份位置，优先选其他磁盘；备份放在同一磁盘不会节省该磁盘的总空间。视频和热更新不在本次移除范围内。\n\n移除后继续使用 -krqlv=uhd；切回 HD 前必须恢复备份。继续？", parent=self.root):
+            return
+        folder = filedialog.askdirectory(title="选择 HD 备份存放位置（建议其他磁盘）", parent=self.root)
+        if folder:
+            self.start("backup_remove_hd", folder)
+
+    def confirm_restore_hd(self):
+        if self.busy:
+            return
+        folder = filedialog.askdirectory(title="选择含 manifest-sha256.json 和 HD 的备份批次目录", parent=self.root)
+        if folder and messagebox.askokcancel("恢复 HD 备份", "退出游戏后，将验证备份并恢复 Client/Content/HD，约需 45.71 GB 空间。\n\n备份会保留；已有 HD 目录不会被覆盖。恢复完成后，才可执行“回退到 HD”。\n\n备份：" + folder + "\n\n继续？", parent=self.root):
+            self.start("restore_hd", folder)
 
     def confirm_clear(self):
         if messagebox.askokcancel("清理缓存并释放空间", "此操作只清理本工具的下载 / 已回退缓存。\n\n清理后恢复 UHD 需要重新下载；已启用的 UHD 必须先回退。原游戏文件不删除。\n\n确定清理？", parent=self.root):
@@ -255,8 +308,8 @@ class App:
     def pause(self):
         self.cancel.set()
         self.pause_button.configure(state="disabled")
-        self.status.set("正在暂停 · 等待当前网络读取返回")
-        self.append("暂停已请求；网络超时最长约 15 秒，已下载数据将保留。")
+        self.status.set("正在停止 · 等待当前读写安全结束")
+        self.append("停止已请求；下载缓存或 HD 备份将保留，请等待操作记录。")
 
     def open_cache(self):
         try:

@@ -69,13 +69,20 @@ class Transport:
         return Response(data, 206 if offset else 200, headers, fail_after)
 
 
-class AcceptanceTests(unittest.TestCase):
+class GameFixture(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="wuwa-tool-test-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "测试 WeGame 游戏(2002137)"
         (self.root / "Client/Content/HD").mkdir(parents=True)
-        (self.root / "Client/Content/HD/keep.pak").write_bytes(b"original HD must stay intact")
+        self.hd_files = {"pakchunk1-HD-WindowsNoEditor.pak": b"original HD" * 1000,
+                         "pakchunk1-HD-WindowsNoEditor.sig": b"original HD signature" * 40}
+        for name, data in self.hd_files.items():
+            (self.root / "Client/Content/HD" / name).write_bytes(data)
+        self.hd_raw = json.dumps({"resource": [{"dest": "Client/Content/HD/" + name,
+                                  "size": len(data), "md5": hashlib.md5(data).hexdigest()}
+                                 for name, data in self.hd_files.items()]}).encode()
+        self.hd_digest = hashlib.md5(self.hd_raw).hexdigest()
         self.core = {}
         for n, rel in enumerate(CORE_FILES):
             p = self.root / rel
@@ -102,6 +109,7 @@ class AcceptanceTests(unittest.TestCase):
 
     def make_manager(self, **kwargs):
         return Manager(self.root, manifest=self.raw, expected_md5=self.digest,
+                       hd_manifest=self.hd_raw, hd_expected_md5=self.hd_digest,
                        core_files=self.core, transport=self.transport, guard=lambda root: [],
                        event=self.events.append, **kwargs)
 
@@ -120,6 +128,7 @@ class AcceptanceTests(unittest.TestCase):
         (self.m.parts / (name + ".part")).write_bytes(self.files[name][:count])
         return name
 
+class AcceptanceTests(GameFixture):
     def test_bundled_official_manifest(self):
         entries = parse_manifest(bundled_manifest())
         self.assertEqual(len(entries), 100)
@@ -421,8 +430,10 @@ class AcceptanceTests(unittest.TestCase):
 
 
 def run_tests():
+    from .selftest_hd import HDTests
     stream = io.StringIO()
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(AcceptanceTests)
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case)
+                               for case in (AcceptanceTests, HDTests))
     result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
     return {"ok": result.wasSuccessful(), "tests_run": result.testsRun,
             "failures": len(result.failures), "errors": len(result.errors),

@@ -21,6 +21,7 @@ import uuid
 
 VERSION = "3.7.0"
 MANIFEST_MD5 = "bb8104efa17446c5cac8f35f1593fe59"
+HD_MANIFEST_MD5 = "4f062fb8220bde7ef45707746869750b"
 PACK_PATH = "launcher/game/G152/10003/3.7.0/983fc4b836c240319aa3a0fc2c9f8514/"
 INDEX_PATH = "launcher/game/10003_oLNgHF1CESo51DGHN2odtp40e3oI1HfZ/G152/official/index.json"
 CONFIG_HOSTS = (
@@ -111,7 +112,7 @@ def load_json(path, limit=2 * 1024 * 1024):
     if path.stat().st_size > limit:
         raise ToolError(f"配置文件过大，已停止：{path.name}")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except (ValueError, UnicodeError) as exc:
         raise ToolError(f"配置损坏，已停止以保护原文件：{path.name}") from exc
 
@@ -152,7 +153,9 @@ class OfficialTransport:
         return raw
 
 
-def parse_manifest(raw, expected=MANIFEST_MD5):
+def parse_manifest(raw, expected=MANIFEST_MD5, bundle="UHD"):
+    if bundle not in {"HD", "UHD"}:
+        raise ToolError("未知资源档位。")
     if hashlib.md5(raw).hexdigest() != expected:
         raise ToolError("UHD 清单校验失败，拒绝下载或写入。")
     try:
@@ -168,7 +171,7 @@ def parse_manifest(raw, expected=MANIFEST_MD5):
             raise ToolError("资源清单条目无效。")
         dest, size, digest = entry.get("dest"), entry.get("size"), entry.get("md5")
         if (not isinstance(dest, str)
-                or not re.fullmatch(r"Client/Content/UHD/[A-Za-z0-9_.-]+\.(pak|sig)", dest)
+                or not re.fullmatch(rf"Client/Content/{bundle}/[A-Za-z0-9_.-]+\.(pak|sig)", dest)
                 or ".." in dest or PurePosixPath(dest).name.startswith(".")
                 or isinstance(size, bool) or not isinstance(size, int) or not 0 < size < 100 * 2**30
                 or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{32}", digest)):
@@ -181,8 +184,10 @@ def parse_manifest(raw, expected=MANIFEST_MD5):
     return result
 
 
-def bundled_manifest():
-    return (Path(__file__).parent / "data" / "uhd-3.7.0.json").read_bytes()
+def bundled_manifest(bundle="UHD"):
+    if bundle not in {"HD", "UHD"}:
+        raise ToolError("未知资源档位。")
+    return (Path(__file__).parent / "data" / f"{bundle.lower()}-3.7.0.json").read_bytes()
 
 
 def processes_for_game(root):
@@ -269,11 +274,14 @@ def exclusive_lock(path):
 
 class Manager:
     def __init__(self, game, *, manifest=None, expected_md5=MANIFEST_MD5,
-                 core_files=None, transport=None, guard=None, event=None, cancel=None):
+                 core_files=None, transport=None, guard=None, event=None, cancel=None,
+                 hd_manifest=None, hd_expected_md5=HD_MANIFEST_MD5):
         self.root = canonical(game)
         self.manifest_raw = bundled_manifest() if manifest is None else manifest
         self.manifest_md5 = expected_md5
         self.entries = parse_manifest(self.manifest_raw, expected_md5)
+        self.hd_entries = parse_manifest(bundled_manifest("HD") if hd_manifest is None else hd_manifest,
+                                         hd_expected_md5, "HD")
         self.core_files = CORE_FILES if core_files is None else core_files
         self.transport = transport or OfficialTransport()
         self.guard = guard or processes_for_game
@@ -302,14 +310,15 @@ class Manager:
                 self.event({"kind": "progress", "current": sum(self._received.values()),
                             "total": self.total, "file": name})
 
-    def check_root(self, hashes=True):
+    def check_root(self, hashes=True, allow_missing_resources=False):
         if str(self.root).startswith("\\\\"):
             raise ToolError("不支持网络共享目录，请选择本地游戏目录。")
         for path in (self.root, self.root / "Client/Content/HD", self.work, self.cache,
                      self.parts, self.target, self.state_path):
             no_links(path)
-        if not self.root.is_dir() or not (self.root / "Client/Content/HD").is_dir():
-            raise ToolError("请选择已有 HD 版游戏的根目录，其中应包含 Client 和 Wuthering Waves.exe。")
+        if (not self.root.is_dir() or (not allow_missing_resources
+                and not (self.root / "Client/Content/HD").is_dir() and not self.target.is_dir())):
+            raise ToolError("请选择含 HD 或 UHD 资源的游戏根目录，其中应包含 Client 和 Wuthering Waves.exe。")
         for rel, (size, digest) in self.core_files.items():
             path = no_links(self.root / rel)
             if not path.is_file() or path.stat().st_size != size:
@@ -392,6 +401,7 @@ class Manager:
             if state is None:
                 raise ToolError("游戏已经有 UHD 目录，但不是本工具管理的；不会覆盖它。")
             self.owned(self.target, state)
+            self.hd_resources().verify_uhd(hashes=False)
         if online:
             self.online_check()
         free = shutil.disk_usage(self.root.parent).free
@@ -401,7 +411,17 @@ class Manager:
                 "free_bytes": free, "cache_directory": str(self.work),
                 "online_verified": online, "running": self.guard(self.root),
                 "target_exists": self.target.exists(), "cache_exists": self.cache.exists(),
-                "runtime_verified": False}
+                "runtime_verified": False, **self.hd_resources().status()}
+
+    def hd_resources(self):
+        from .hd_resources import HDResources
+        return HDResources(self)
+
+    def backup_remove_hd(self, backup_parent):
+        return self.hd_resources().backup_remove(backup_parent)
+
+    def restore_hd(self, backup_directory):
+        return self.hd_resources().restore(backup_directory)
 
     def preserved(self):
         snapshot = {}
@@ -528,6 +548,7 @@ class Manager:
 
     def apply(self):
         self.check_root()
+        self.hd_resources().require_no_pending()
         self.idle()
         self.online_check()
         if self.target.exists() and not self.state_path.exists():
@@ -613,6 +634,8 @@ class Manager:
                 self.tell("原 HD 未被替换；目前没有需要移出的 UHD 目录。缓存保留。")
                 return {"status": state["status"], "changed": False}
             self.owned(self.target, state)
+            self.hd_resources().require_no_pending()
+            self.hd_resources().verify_hd_for_rollback()
             if self.cache.exists():
                 raise ToolError("回退缓存位置已被占用，拒绝覆盖。")
             check_cancel(self.cancel)
@@ -632,6 +655,7 @@ class Manager:
         if not self.work.is_dir():
             raise ToolError("没有本工具的缓存。")
         with exclusive_lock(self.work / "operation.lock"):
+            self.hd_resources().require_no_pending()
             state = self.read_state()
             if not state:
                 raise ToolError("缺少所有权记录，拒绝清理。")

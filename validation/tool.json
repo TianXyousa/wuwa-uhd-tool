@@ -1,10 +1,10 @@
 {
   "date": "2026-10-01",
-  "version": "1.0.1",
-  "scope": "offline fixture tests and GUI smoke test for 1.0.1; prior real resource verification; user-reported WeGame runtime test",
+  "version": "1.1.0",
+  "scope": "63 source and frozen EXE offline fixture tests, GUI smoke and visual checks; read-only real UHD-only inspection and legacy HD backup hash verification; prior manually scripted HD removal and one-machine user-reported runtime test",
   "source": {
     "ok": true,
-    "tests_run": 36,
+    "tests_run": 63,
     "failures": 0,
     "errors": 0,
     "real_game_modified": false,
@@ -46,12 +46,39 @@
       "test_unknown_cache_file_prevents_clear",
       "test_untrusted_urls_rejected",
       "test_version_mismatch_stops_before_writes",
-      "test_wegame_instructions_do_not_launch_or_modify_game"
+      "test_wegame_instructions_do_not_launch_or_modify_game",
+      "test_backup_copy_failure_keeps_original",
+      "test_backup_inside_game_or_cache_is_rejected",
+      "test_backup_remove_inspect_restore_rollback",
+      "test_cancel_during_copy_keeps_original",
+      "test_channel_change_during_backup_blocks_removal",
+      "test_corrupt_uhd_blocks_hd_removal",
+      "test_corrupted_backup_before_commit_preserves_hd",
+      "test_crash_before_remove_rename_resumes",
+      "test_game_starting_during_backup_blocks_removal",
+      "test_hardlinked_hd_is_rejected",
+      "test_hd_actions_use_existing_operation_lock",
+      "test_missing_backup_blocks_resumed_delete",
+      "test_official_hd_manifest_is_pinned",
+      "test_out_of_space_does_not_create_backup",
+      "test_partial_delete_resumes_with_verified_backup",
+      "test_restoration_stops_on_client_version_change",
+      "test_restore_accepts_previous_manual_backup_with_bom",
+      "test_restore_crash_after_commit_recovers",
+      "test_restore_interrupted_copy_can_continue",
+      "test_restore_refuses_existing_hd",
+      "test_restore_rejects_path_traversal_manifest",
+      "test_restore_rejects_tampered_backup",
+      "test_rollback_with_corrupt_hd_preserves_uhd",
+      "test_rollback_without_hd_preserves_uhd",
+      "test_same_drive_backup_reports_no_net_space_saving",
+      "test_unknown_hd_file_blocks_removal",
+      "test_unknown_quarantine_file_is_not_deleted"
     ]
   },
   "frozen_exe": {
     "ok": true,
-    "tests_run": 36,
+    "tests_run": 63,
     "failures": 0,
     "errors": 0,
     "real_game_modified": false,
@@ -93,12 +120,39 @@
       "test_unknown_cache_file_prevents_clear",
       "test_untrusted_urls_rejected",
       "test_version_mismatch_stops_before_writes",
-      "test_wegame_instructions_do_not_launch_or_modify_game"
+      "test_wegame_instructions_do_not_launch_or_modify_game",
+      "test_backup_copy_failure_keeps_original",
+      "test_backup_inside_game_or_cache_is_rejected",
+      "test_backup_remove_inspect_restore_rollback",
+      "test_cancel_during_copy_keeps_original",
+      "test_channel_change_during_backup_blocks_removal",
+      "test_corrupt_uhd_blocks_hd_removal",
+      "test_corrupted_backup_before_commit_preserves_hd",
+      "test_crash_before_remove_rename_resumes",
+      "test_game_starting_during_backup_blocks_removal",
+      "test_hardlinked_hd_is_rejected",
+      "test_hd_actions_use_existing_operation_lock",
+      "test_missing_backup_blocks_resumed_delete",
+      "test_official_hd_manifest_is_pinned",
+      "test_out_of_space_does_not_create_backup",
+      "test_partial_delete_resumes_with_verified_backup",
+      "test_restoration_stops_on_client_version_change",
+      "test_restore_accepts_previous_manual_backup_with_bom",
+      "test_restore_crash_after_commit_recovers",
+      "test_restore_interrupted_copy_can_continue",
+      "test_restore_refuses_existing_hd",
+      "test_restore_rejects_path_traversal_manifest",
+      "test_restore_rejects_tampered_backup",
+      "test_rollback_with_corrupt_hd_preserves_uhd",
+      "test_rollback_without_hd_preserves_uhd",
+      "test_same_drive_backup_reports_no_net_space_saving",
+      "test_unknown_hd_file_blocks_removal",
+      "test_unknown_quarantine_file_is_not_deleted"
     ]
   },
   "frozen_ui": {
     "ok": true,
-    "buttons": 7,
+    "buttons": 9,
     "game_path_empty": true,
     "no_game_operations": true,
     "window_size": [
@@ -129,7 +183,10 @@
     "extreme_graphics_selection_success": true,
     "automated_e2e_verified": false,
     "all_hardware_compatibility_verified": false,
-    "later_hotfix_and_video_compatibility_verified": false
+    "later_hotfix_and_video_compatibility_verified": false,
+    "hd_base_removed_startup_success": true,
+    "hd_base_removed_normal_operation_reported": true,
+    "approximate_hot_update_gb": 7.9
   },
   "known_issues": [
     {
@@ -143,16 +200,98 @@
       "issue": "Long-running GUI download hung and exited; Windows reported AppHangXProcB1.",
       "backend_resume_completed": true,
       "root_cause_confirmed": false,
-      "fixed_in_1_0_1": false
+      "fixed_in_1_0_1": false,
+      "fixed_in_1_1_0": false
     }
   ],
   "independent_review": {
-    "this_version_reviewed": false,
-    "prior_1_0_0": {
-      "initial_code_security": "no blockers reported",
-      "architecture": "unavailable due to model service error",
-      "publication_delta": "review request unavailable due to service rate limit",
-      "full_independent_approval_claimed": false
+    "this_version_reviewed": true,
+    "code_security": {
+      "files_reviewed": 7,
+      "severity_rated_issues": 0,
+      "recommendation": "COMMENT",
+      "tests_run": 63,
+      "compileall_passed": true,
+      "diff_check_passed": true,
+      "formal_lsp_diagnostics_available": false
+    },
+    "architecture": {
+      "status": "independent review unavailable",
+      "reason": "model service unavailable"
+    },
+    "overall_approval": false,
+    "merge_ready_claimed": false,
+    "release_channel": "prerelease"
+  },
+  "visual_ui": [
+    {
+      "size": [
+        1410,
+        1155
+      ],
+      "buttons_visible": true,
+      "log_height": 362,
+      "no_game_operations": true
+    },
+    {
+      "size": [
+        1260,
+        1080
+      ],
+      "buttons_visible": true,
+      "log_height": 287,
+      "no_game_operations": true
     }
+  ],
+  "real_readonly_inspection": {
+    "ok": true,
+    "source_online_index_matched": true,
+    "frozen_exe_offline": true,
+    "uhd_status": "active",
+    "uhd_target_present": true,
+    "hd_present": false,
+    "real_game_modified": false,
+    "real_game_started": false,
+    "full_uhd_hash_check_in_this_step": false,
+    "runtime_verified": false
+  },
+  "legacy_hd_backup_readonly": {
+    "ok": true,
+    "files": 100,
+    "bytes": 45713445823,
+    "md5_and_sha256_verified": true,
+    "legacy_manifest_accepted": true,
+    "manifest_sha256": "cf1cb4623b98635bf57f91f3615bee3887ad664fae69aa41bed6fa06e100ac68",
+    "real_game_modified": false,
+    "real_game_started": false,
+    "backup_modified": false
+  },
+  "prior_manual_hd_removal": {
+    "date": "2026-10-01",
+    "interface": "separate local PowerShell backup/removal script before v1.1.0 development",
+    "files": 100,
+    "bytes": 45713445823,
+    "source_and_backup_sha256_matched": true,
+    "other_game_file_paths_sizes_and_mtimes_unchanged": true,
+    "hd_and_uhd_video_directories_retained": true,
+    "new_exe_real_hd_removal_or_restore_exercised": false
+  },
+  "local_video_file_inspection": {
+    "uhd_packages": 60,
+    "uhd_directory_bytes": 7664888222,
+    "hd_directory_bytes": 4172069844,
+    "uhd_videos_with_higher_bitrate": 60,
+    "uhd_videos_with_higher_resolution": 55,
+    "uhd_payload_sha1_matches_pak_headers": 60,
+    "all_uhd_videos_are_4k": false,
+    "runtime_video_selection_verified": false,
+    "historical_video_completeness_verified": false,
+    "exact_7_9_gb_update_breakdown_verified": false
+  },
+  "executable": {
+    "name": "WuwaUHDTool.exe",
+    "bytes": 12941304,
+    "sha256": "d818b3936ae4061a13a62f7ea2325e3ce55827ddb10927cfa7c83d56c3cddc21",
+    "code_signed": false
   }
 }
