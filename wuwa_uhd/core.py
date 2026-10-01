@@ -59,7 +59,7 @@ class Cancelled(ToolError):
 
 def check_cancel(event):
     if event.is_set():
-        raise Cancelled("已暂停，下载进度保留在缓存中。")
+        raise Cancelled("已暂停。请查看操作记录了解文件保留状态与后续步骤。")
 
 
 def canonical(path):
@@ -422,6 +422,14 @@ class Manager:
 
     def restore_hd(self, backup_directory):
         return self.hd_resources().restore(backup_directory)
+
+    def prepare_delete_hd_backup(self, backup_directory):
+        from .hd_backup_delete import BackupDeletion
+        return BackupDeletion(self).prepare(backup_directory)
+
+    def delete_hd_backup(self, plan, confirmed_playable=False):
+        from .hd_backup_delete import BackupDeletion
+        return BackupDeletion(self).delete(plan, confirmed_playable=confirmed_playable)
 
     def preserved(self):
         snapshot = {}

@@ -431,9 +431,10 @@ class AcceptanceTests(GameFixture):
 
 def run_tests():
     from .selftest_hd import HDTests
+    from .selftest_hd_delete import HDDeleteTests
     stream = io.StringIO()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case)
-                               for case in (AcceptanceTests, HDTests))
+                               for case in (AcceptanceTests, HDTests, HDDeleteTests))
     result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
     return {"ok": result.wasSuccessful(), "tests_run": result.testsRun,
             "failures": len(result.failures), "errors": len(result.errors),

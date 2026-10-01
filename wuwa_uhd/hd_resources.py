@@ -1,4 +1,4 @@
-"""Verified HD backup/removal and restore; never deletes an external backup."""
+"""Verified HD backup/removal and restore; these operations retain external backups."""
 from __future__ import annotations
 
 import hashlib
@@ -13,6 +13,7 @@ from .core import (MARKER, VERSION, ToolError, atomic_json, canonical, check_can
                    exclusive_lock, hash_file, load_json, no_links)
 
 MANIFEST = "manifest-sha256.json"
+DELETION_RECEIPT = ".wuwa-hd-backup-deletion.json"
 PENDING = {"removing", "restoring"}
 
 
@@ -63,9 +64,15 @@ class HDResources:
 
     def status(self):
         data = self._state()
+        usable = None
+        if data:
+            backup = self._external(data["backup_directory"])
+            usable = (no_links(backup / "HD").is_dir() and no_links(backup / MANIFEST).is_file()
+                      and not no_links(backup / DELETION_RECEIPT).exists())
         return {"hd_present": self.hd.is_dir(),
                 "hd_operation": data["stage"] if data else "none",
-                "hd_backup_directory": data["backup_directory"] if data else None}
+                "hd_backup_directory": data["backup_directory"] if data else None,
+                "hd_backup_usable": usable}
 
     def require_no_pending(self):
         data = self._state()
@@ -155,9 +162,10 @@ class HDResources:
             raise ToolError(f"备份写入校验失败：{entry['name']}；未删除原件。")
         return {"path": entry["name"], "size": entry["size"], "sha256": copied_sha}
 
-    def _load_backup(self, directory, expected_manifest=None):
+    def _read_backup_manifest(self, directory, expected_manifest=None):
         directory = self._external(directory)
         path = no_links(directory / MANIFEST)
+        before = signature(path)
         data = load_json(path)
         expected = {e["name"]: e for e in self.entries}
         if (not isinstance(data, dict) or data.get("algorithm") != "SHA256"
@@ -177,8 +185,17 @@ class HDResources:
         if records.keys() != expected.keys():
             raise ToolError("备份清单不完整。")
         digest = hash_file(path, "sha256", self.m.cancel)
+        if signature(path) != before:
+            raise ToolError("读取期间备份清单发生变化，已停止。")
         if expected_manifest is not None and digest != expected_manifest:
             raise ToolError("操作中断后备份清单发生变化，拒绝继续。")
+        return records, digest
+
+    def _load_backup(self, directory, expected_manifest=None):
+        directory = self._external(directory)
+        if no_links(directory / DELETION_RECEIPT).exists():
+            raise ToolError("这份 HD 备份已进入永久删除流程，无法用于恢复。请使用其他完整备份。")
+        records, digest = self._read_backup_manifest(directory, expected_manifest)
         self._verify(directory / "HD", self.entries, records=records, phase="核对备份 SHA256")
         return records, digest
 

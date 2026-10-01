@@ -1,10 +1,10 @@
 {
   "date": "2026-10-01",
-  "version": "1.1.0",
-  "scope": "63 source and frozen EXE offline fixture tests, GUI smoke and visual checks; read-only real UHD-only inspection and legacy HD backup hash verification; prior manually scripted HD removal and one-machine user-reported runtime test",
+  "version": "1.2.0",
+  "scope": "82 source and frozen EXE offline fixture tests, GUI smoke and red warning modal checks; current read-only game and legacy backup inventory checks; no real backup deletion",
   "source": {
     "ok": true,
-    "tests_run": 63,
+    "tests_run": 82,
     "failures": 0,
     "errors": 0,
     "real_game_modified": false,
@@ -73,12 +73,31 @@
       "test_rollback_without_hd_preserves_uhd",
       "test_same_drive_backup_reports_no_net_space_saving",
       "test_unknown_hd_file_blocks_removal",
-      "test_unknown_quarantine_file_is_not_deleted"
+      "test_unknown_quarantine_file_is_not_deleted",
+      "test_cancel_before_deletion_keeps_entire_backup",
+      "test_changed_backup_after_confirmation_stops_before_deletion",
+      "test_corrupt_backup_before_preview_is_not_deleted",
+      "test_corrupt_uhd_blocks_backup_deletion",
+      "test_crash_after_last_delete_can_finalize",
+      "test_delete_only_selected_backup_payload",
+      "test_foreign_deletion_receipt_is_rejected",
+      "test_foreign_directory_and_game_paths_rejected",
+      "test_gui_both_confirmations_are_required",
+      "test_gui_selecting_backup_only_requests_readonly_preview",
+      "test_gui_unchecked_playability_checkbox_blocks_confirmation",
+      "test_hardlinked_backup_payload_is_rejected",
+      "test_legacy_bom_backup_can_be_selected_for_deletion",
+      "test_manifest_change_after_confirmation_stops",
+      "test_partial_delete_can_resume_after_new_confirmation",
+      "test_pending_restore_blocks_backup_deletion",
+      "test_preview_and_missing_confirmation_never_delete",
+      "test_running_game_and_operation_lock_block_deletion",
+      "test_unknown_file_in_hd_blocks_all_deletion"
     ]
   },
   "frozen_exe": {
     "ok": true,
-    "tests_run": 63,
+    "tests_run": 82,
     "failures": 0,
     "errors": 0,
     "real_game_modified": false,
@@ -147,12 +166,31 @@
       "test_rollback_without_hd_preserves_uhd",
       "test_same_drive_backup_reports_no_net_space_saving",
       "test_unknown_hd_file_blocks_removal",
-      "test_unknown_quarantine_file_is_not_deleted"
+      "test_unknown_quarantine_file_is_not_deleted",
+      "test_cancel_before_deletion_keeps_entire_backup",
+      "test_changed_backup_after_confirmation_stops_before_deletion",
+      "test_corrupt_backup_before_preview_is_not_deleted",
+      "test_corrupt_uhd_blocks_backup_deletion",
+      "test_crash_after_last_delete_can_finalize",
+      "test_delete_only_selected_backup_payload",
+      "test_foreign_deletion_receipt_is_rejected",
+      "test_foreign_directory_and_game_paths_rejected",
+      "test_gui_both_confirmations_are_required",
+      "test_gui_selecting_backup_only_requests_readonly_preview",
+      "test_gui_unchecked_playability_checkbox_blocks_confirmation",
+      "test_hardlinked_backup_payload_is_rejected",
+      "test_legacy_bom_backup_can_be_selected_for_deletion",
+      "test_manifest_change_after_confirmation_stops",
+      "test_partial_delete_can_resume_after_new_confirmation",
+      "test_pending_restore_blocks_backup_deletion",
+      "test_preview_and_missing_confirmation_never_delete",
+      "test_running_game_and_operation_lock_block_deletion",
+      "test_unknown_file_in_hd_blocks_all_deletion"
     ]
   },
   "frozen_ui": {
     "ok": true,
-    "buttons": 9,
+    "buttons": 10,
     "game_path_empty": true,
     "no_game_operations": true,
     "window_size": [
@@ -201,7 +239,8 @@
       "backend_resume_completed": true,
       "root_cause_confirmed": false,
       "fixed_in_1_0_1": false,
-      "fixed_in_1_1_0": false
+      "fixed_in_1_1_0": false,
+      "fixed_in_1_2_0": false
     }
   ],
   "independent_review": {
@@ -210,10 +249,11 @@
       "files_reviewed": 7,
       "severity_rated_issues": 0,
       "recommendation": "COMMENT",
-      "tests_run": 63,
+      "tests_run": 82,
       "compileall_passed": true,
       "diff_check_passed": true,
-      "formal_lsp_diagnostics_available": false
+      "formal_lsp_diagnostics_available": false,
+      "ast_parse_passed": true
     },
     "architecture": {
       "status": "independent review unavailable",
@@ -223,29 +263,50 @@
     "merge_ready_claimed": false,
     "release_channel": "prerelease"
   },
-  "visual_ui": [
-    {
-      "size": [
-        1410,
-        1155
-      ],
-      "buttons_visible": true,
-      "log_height": 362,
-      "no_game_operations": true
-    },
-    {
-      "size": [
-        1260,
-        1080
-      ],
-      "buttons_visible": true,
-      "log_height": 287,
-      "no_game_operations": true
-    }
-  ],
+  "visual_ui": {
+    "ok": true,
+    "game_path_empty": true,
+    "buttons": 10,
+    "checkbox_gating_verified": true,
+    "cancel_result_verified": true,
+    "views": [
+      {
+        "view": "default",
+        "size": [
+          1410,
+          1155
+        ],
+        "no_game_operations": true
+      },
+      {
+        "view": "minimum",
+        "size": [
+          1260,
+          1080
+        ],
+        "no_game_operations": true
+      },
+      {
+        "view": "confirm-unchecked",
+        "size": [
+          770,
+          404
+        ],
+        "no_game_operations": true
+      },
+      {
+        "view": "confirm-checked",
+        "size": [
+          770,
+          404
+        ],
+        "no_game_operations": true
+      }
+    ]
+  },
   "real_readonly_inspection": {
     "ok": true,
-    "source_online_index_matched": true,
+    "source_offline": true,
     "frozen_exe_offline": true,
     "uhd_status": "active",
     "uhd_target_present": true,
@@ -264,7 +325,8 @@
     "manifest_sha256": "cf1cb4623b98635bf57f91f3615bee3887ad664fae69aa41bed6fa06e100ac68",
     "real_game_modified": false,
     "real_game_started": false,
-    "backup_modified": false
+    "backup_modified": false,
+    "verified_tool_version": "1.1.0"
   },
   "prior_manual_hd_removal": {
     "date": "2026-10-01",
@@ -290,8 +352,34 @@
   },
   "executable": {
     "name": "WuwaUHDTool.exe",
-    "bytes": 12941304,
-    "sha256": "d818b3936ae4061a13a62f7ea2325e3ce55827ddb10927cfa7c83d56c3cddc21",
+    "bytes": 12959983,
+    "sha256": "d92da011ad4cfe9eababd7e8c20a851b2c8918ea9c4a1c9b519a95d2ceb68c35",
     "code_signed": false
+  },
+  "real_backup_preservation": {
+    "ok": true,
+    "legacy_backup_manifest_accepted": true,
+    "hd_backup_files_present": 100,
+    "hd_backup_bytes": 45713445823,
+    "backup_deletion_receipt_absent": true,
+    "real_game_modified": false,
+    "real_backup_deleted": false,
+    "real_game_started": false,
+    "backup_full_hash_check_repeated": false
+  },
+  "backup_deletion_validation": {
+    "scope": "temporary fixtures only",
+    "real_backup_deleted": false,
+    "first_checkbox_required": true,
+    "second_confirmation_default_no": true,
+    "both_confirmations_required": true,
+    "preview_is_readonly": true,
+    "selected_payload_only": true,
+    "non_recursive": true,
+    "unknown_files_preserved": true,
+    "stale_confirmation_blocked": true,
+    "partial_deletion_resume_tested": true,
+    "partial_backup_restore_blocked": true,
+    "permanent_deletion_is_not_undoable": true
   }
 }

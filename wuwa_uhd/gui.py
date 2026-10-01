@@ -6,7 +6,7 @@ import queue
 import threading
 import time
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from . import __version__
 from .core import Cancelled, Manager, ToolError, detect_game
@@ -15,6 +15,8 @@ BG = "#f4f6fa"
 INK = "#172438"
 MUTED = "#59677b"
 ACCENT = "#2563eb"
+DANGER = "#b91c1c"
+DELETE_HD_WARNING = "危险：确认 UHD 能正常运行后再删除！删除后无法从这份备份恢复。"
 WEGAME_LAUNCH_GUIDE = (
     "1. 等待 UHD 资源下载并校验完成。\n"
     "2. 打开 WeGame 中鸣潮的启动参数设置，保留原有参数，追加：\n\n"
@@ -26,6 +28,47 @@ WEGAME_LAUNCH_GUIDE = (
     "回退到 HD 后，请在 WeGame 中移除 -krqlv=uhd，再从 WeGame 启动。\n"
     "工具不会自动修改 WeGame 设置；游戏可能继续下载热更新和视频。"
 )
+
+
+class HDBackupDeleteDialog(simpledialog.Dialog):
+    def __init__(self, parent, plan):
+        self.plan = plan
+        super().__init__(parent, "第一次确认 · 永久删除 HD 备份")
+
+    def body(self, master):
+        self.confirmed = tk.BooleanVar(master=self, value=False)
+        tk.Label(master, text=DELETE_HD_WARNING, fg=DANGER, font=("Microsoft YaHei UI", 11, "bold"),
+                 wraplength=700, justify="left").pack(anchor="w", padx=16, pady=(14, 10))
+        text = (f"所选备份：\n{self.plan['backup_directory']}\n\n"
+                f"将永久删除 {self.plan['file_count']} 个 HD 资源文件，约 {self.plan['bytes']/2**30:.2f} GiB。\n"
+                "删除不经过回收站，工具无法撤销。以后需要 HD 时，须另找完整备份或重新下载。\n"
+                "只处理该批次的 HD 基础包，清单与删除记录保留。")
+        tk.Label(master, text=text, font=("Microsoft YaHei UI", 10), wraplength=700,
+                 justify="left").pack(anchor="w", padx=16, pady=(0, 12))
+        self.checkbox = tk.Checkbutton(master, variable=self.confirmed, fg=DANGER, activeforeground=DANGER,
+            text="我已通过 WeGame 实际进入 UHD 游戏并正常游玩，确认可以删除这份备份。",
+            font=("Microsoft YaHei UI", 10), wraplength=700, justify="left", command=self._toggle)
+        self.checkbox.pack(anchor="w", padx=16, pady=(0, 12))
+        return self.checkbox
+
+    def buttonbox(self):
+        box = ttk.Frame(self, padding=12)
+        self.confirm_button = ttk.Button(box, text="已确认正常游玩，继续", style="Danger.TButton",
+                                         command=self.ok, state="disabled")
+        self.confirm_button.pack(side="left", padx=8)
+        ttk.Button(box, text="取消并保留备份", command=self.cancel).pack(side="left", padx=8)
+        box.pack()
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+
+    def _toggle(self):
+        self.confirm_button.configure(state="normal" if self.confirmed.get() else "disabled")
+
+    def validate(self):
+        return self.confirmed.get()
+
+    def apply(self):
+        self.result = True
 
 
 class App:
@@ -62,6 +105,9 @@ class App:
         style.configure("TFrame", background=BG)
         style.configure("TLabel", background=BG, foreground=INK, font=("Microsoft YaHei UI", 10))
         style.configure("Muted.TLabel", foreground=MUTED)
+        style.configure("Danger.TLabel", foreground=DANGER)
+        style.configure("Danger.TButton", foreground=DANGER)
+        style.map("Danger.TButton", foreground=[("disabled", "#929292"), ("active", "#991b1b")])
         style.configure("Title.TLabel", font=("Microsoft YaHei UI", 23, "bold"))
         style.configure("TButton", font=("Microsoft YaHei UI", 10), padding=(12, 9))
         style.configure("Primary.TButton", background=ACCENT, foreground="white", borderwidth=0)
@@ -114,9 +160,16 @@ class App:
         self.restore_hd_button = ttk.Button(hd_actions, text="恢复 HD 备份", command=self.confirm_restore_hd)
         self.restore_hd_button.pack(side="left")
         ttk.Label(hd_actions, text="仅基础包 · 约 42.57 GiB · 备份请优先选其他磁盘", style="Muted.TLabel").pack(side="left", padx=10)
+        delete_row = ttk.Frame(outer)
+        delete_row.pack(fill="x", pady=(0, 12))
+        self.delete_hd_backup_button = ttk.Button(delete_row, text="彻底删除 HD 备份", style="Danger.TButton",
+                                                  command=self.confirm_delete_hd_backup)
+        self.delete_hd_backup_button.pack(side="left", padx=(0, 10))
+        ttk.Label(delete_row, text=DELETE_HD_WARNING, style="Danger.TLabel",
+                  wraplength=int(580*self.scale)).pack(side="left")
         self.buttons = [self.check_button, self.apply_button, self.rollback_button,
                         self.wegame_button, self.cache_button, self.clear_button, self.browse_button,
-                        self.remove_hd_button, self.restore_hd_button]
+                        self.remove_hd_button, self.restore_hd_button, self.delete_hd_backup_button]
         self.bar = ttk.Progressbar(outer, maximum=100, mode="determinate")
         self.bar.pack(fill="x")
         ttk.Label(outer, textvariable=self.progress_text, style="Muted.TLabel", wraplength=int(850*self.scale)).pack(anchor="w", pady=(6, 12))
@@ -169,10 +222,12 @@ class App:
         for button in self.buttons:
             button.configure(state="disabled")
         self.path_entry.configure(state="disabled")
-        self.pause_button.configure(state="normal" if action in {"apply", "inspect", "backup_remove_hd", "restore_hd"} else "disabled")
+        self.pause_button.configure(state="normal" if action in {"apply", "inspect", "backup_remove_hd", "restore_hd",
+                                                                 "prepare_delete_hd_backup", "delete_hd_backup"} else "disabled")
         labels = {"inspect": "正在只读检查", "apply": "正在下载 / 校验 UHD", "rollback": "正在回退",
                   "clear_cache": "正在清理缓存", "backup_remove_hd": "正在备份并移除 HD",
-                  "restore_hd": "正在恢复 HD 备份"}
+                  "restore_hd": "正在恢复 HD 备份", "prepare_delete_hd_backup": "正在只读核对所选 HD 备份",
+                  "delete_hd_backup": "正在校验并永久删除所选 HD 备份"}
         self.status.set(labels[action])
         self.append(labels[action])
         self.bar.configure(mode="indeterminate")
@@ -226,8 +281,10 @@ class App:
                     self.append(item["text"])
                     messagebox.showerror("操作已停止", item["text"], parent=self.root)
                 elif kind == "stopped":
-                    self.status.set("操作已停止 · 文件与进度保留，请查看操作记录")
+                    self.status.set("操作已停止 · 请查看操作记录")
                     self.append(item["text"])
+                    if self.action == "delete_hd_backup":
+                        self.append("永久删除无法撤销。剩余备份文件保留，再次选择同一批次可继续。")
                     if self.action in {"backup_remove_hd", "restore_hd"}:
                         self.append("HD 复制中断时原件与备份保留。若已进入移除 / 恢复阶段，再次选择同一操作可继续。")
                 else:
@@ -243,7 +300,8 @@ class App:
             self.summary.set(f"客户端 3.7.0 核心校验通过 · 官方清单匹配\n{hd} · 磁盘可用 {result['free_bytes']/2**30:.1f} GiB")
             self.append("缓存位置：" + result["cache_directory"])
             if result["hd_backup_directory"]:
-                self.append("HD 备份：" + result["hd_backup_directory"])
+                label = "HD 备份已不完整或已进入删除流程：" if result.get("hd_backup_usable") is False else "HD 备份："
+                self.append(label + result["hd_backup_directory"])
             if result["hd_operation"] in {"removing", "restoring"}:
                 self.status.set("有未完成的 HD 操作 · 请继续移除或恢复")
             if result["running"]:
@@ -273,6 +331,37 @@ class App:
             self.status.set("HD 备份已恢复并校验 · 现在可以回退 UHD")
             self.bar["value"] = 100
             self.progress_text.set("备份保留。需要切回 HD 时，点击“回退到 HD”，再在 WeGame 移除 -krqlv=uhd。")
+        elif action == "prepare_delete_hd_backup":
+            self.status.set("备份清单已核对 · 等待两次确认")
+            self.progress_text.set("尚未删除任何文件。")
+            self.confirm_prepared_backup_delete(result)
+        elif action == "delete_hd_backup":
+            self.status.set("所选 HD 备份资源已永久删除 · 游戏未改动")
+            self.bar["value"] = 100
+            self.progress_text.set(f"删除 {result['deleted_files']} 个文件，约 {result['deleted_bytes']/2**30:.2f} GiB。此备份已不能用于恢复 HD。")
+            self.append("保留清单与删除记录：" + result["backup_directory"])
+
+    def confirm_delete_hd_backup(self):
+        if self.busy:
+            return
+        folder = filedialog.askdirectory(title="选择要永久删除的 HD 备份批次（含 manifest-sha256.json）", parent=self.root)
+        if folder:
+            self.start("prepare_delete_hd_backup", folder)
+
+    def confirm_prepared_backup_delete(self, plan):
+        if HDBackupDeleteDialog(self.root, plan).result is not True:
+            self.status.set("已取消删除 · 备份保留")
+            return
+        text = ("最后确认：你已实际进入 UHD 游戏并确认能正常游玩吗？\n\n"
+                f"即将永久删除：\n{plan['backup_directory']}\\HD\n\n"
+                f"{plan['file_count']} 个文件，约 {plan['bytes']/2**30:.2f} GiB。\n"
+                "删除不进回收站，无法撤销；这份备份将不能再用于恢复或回退 HD。\n\n"
+                "确认正常运行且不再需要此备份，才选择“是”。")
+        if messagebox.askyesno("第二次确认 · 确认正常运行后才删除", text, parent=self.root,
+                               icon=messagebox.WARNING, default=messagebox.NO):
+            self.start("delete_hd_backup", plan, True)
+        else:
+            self.status.set("已取消删除 · 备份保留")
 
     def confirm_apply(self):
         if messagebox.askokcancel("下载并添加 UHD", "将从库洛官方服务器下载约 66.04 GB 基础资源。\n\n仅在全部校验通过后添加 UHD 目录，不覆盖 HD、程序或 WeGame 渠道文件，也不自动启动游戏。\n\n可以暂停续传；安装后可以回退。继续？", parent=self.root):
@@ -309,7 +398,8 @@ class App:
         self.cancel.set()
         self.pause_button.configure(state="disabled")
         self.status.set("正在停止 · 等待当前读写安全结束")
-        self.append("停止已请求；下载缓存或 HD 备份将保留，请等待操作记录。")
+        self.append("停止已请求，请等待操作记录。永久删除时已删除的文件无法撤销，其余文件保留。"
+                    if self.action == "delete_hd_backup" else "停止已请求；下载缓存或 HD 备份将保留，请等待操作记录。")
 
     def open_cache(self):
         try:
