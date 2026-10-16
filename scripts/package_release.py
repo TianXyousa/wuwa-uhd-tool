@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 sys.path.insert(0, str(ROOT))
 from wuwa_uhd import __version__ as VERSION
+VERSION_DIST = DIST / f"v{VERSION}"
 
 
 def archive(path, files):
@@ -25,20 +26,20 @@ def archive(path, files):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exe", type=Path, default=DIST / "WuwaUHDTool.exe")
-    parser.add_argument("--output", type=Path, default=DIST)
+    parser.add_argument("--exe", type=Path, default=VERSION_DIST / "WuwaUHDTool.exe")
+    parser.add_argument("--output", type=Path, default=VERSION_DIST)
     args = parser.parse_args()
     output = args.output
     output.mkdir(parents=True, exist_ok=True)
     exe = args.exe
     if not exe.is_file():
         raise RuntimeError("Build and validate the executable first")
-    for name in ("README.md", "VALIDATION.md"):
+    for name in ("README.md", "VALIDATION.md", "ITERATION.md"):
         shutil.copyfile(ROOT / name, output / name)
     portable = output / f"WuwaUHDTool-{VERSION}-Windows.zip"
-    portable_names = ["README.md", "VALIDATION.md", "validation/tool.json"]
+    portable_names = ["README.md", "VALIDATION.md", "ITERATION.md", "validation/tool.json"]
     archive(portable, [(exe, exe.name)] + [(ROOT / name, name) for name in portable_names if (ROOT / name).is_file()])
-    names = ["main.py", "build.ps1", "README.md", "VALIDATION.md", ".gitignore", ".gitattributes", ".github/workflows/offline-tests.yml", "scripts/package_release.py"]
+    names = ["main.py", "build.ps1", "README.md", "VALIDATION.md", "ITERATION.md", ".gitignore", ".gitattributes", ".github/workflows/offline-tests.yml", "scripts/package_release.py", "scripts/verify_official.py"]
     source_files = [(ROOT / name, name) for name in names]
     for folder in ("wuwa_uhd", "validation"):
         for path in (ROOT / folder).rglob("*"):

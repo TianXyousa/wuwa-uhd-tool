@@ -9,8 +9,9 @@ import shutil
 import time
 import uuid
 
-from .core import (MARKER, VERSION, ToolError, atomic_json, canonical, check_cancel,
+from .core import (MARKER, RESOURCE_VERSION, ToolError, atomic_json, canonical, check_cancel,
                    exclusive_lock, hash_file, load_json, no_links)
+from .progress import FileProgress
 
 MANIFEST = "manifest-sha256.json"
 DELETION_RECEIPT = ".wuwa-hd-backup-deletion.json"
@@ -65,14 +66,20 @@ class HDResources:
     def status(self):
         data = self._state()
         usable = None
+        details = None
         if data:
-            backup = self._external(data["backup_directory"])
-            usable = (no_links(backup / "HD").is_dir() and no_links(backup / MANIFEST).is_file()
-                      and not no_links(backup / DELETION_RECEIPT).exists())
+            try:
+                details = self.m.inspect_hd_backup(data["backup_directory"])
+                if details["status"] != "inventory_ok":
+                    usable = False
+            except (OSError, ToolError) as exc:
+                usable = False
+                details = {"backup_directory": data["backup_directory"], "status": "unavailable",
+                           "error": str(exc)}
         return {"hd_present": self.hd.is_dir(),
                 "hd_operation": data["stage"] if data else "none",
                 "hd_backup_directory": data["backup_directory"] if data else None,
-                "hd_backup_usable": usable}
+                "hd_backup_usable": usable, "hd_backup_details": details}
 
     def require_no_pending(self):
         data = self._state()
@@ -99,14 +106,18 @@ class HDResources:
             raise ToolError(f"资源文件不完整：{directory}")
         return found
 
-    def _hashes(self, path):
+    def _hashes(self, path, phase="核对文件 MD5 / SHA256"):
         before = signature(path)
         md5, sha = hashlib.md5(), hashlib.sha256()
+        progress = FileProgress(self.m.event, phase, path, before[2])
+        count = 0
         with path.open("rb") as stream:
             while block := stream.read(4 * 1024 * 1024):
                 check_cancel(self.m.cancel)
                 md5.update(block)
                 sha.update(block)
+                count += len(block)
+                progress(count)
         if signature(path) != before:
             raise ToolError(f"校验期间文件发生变化：{path.name}")
         return md5.hexdigest(), sha.hexdigest()
@@ -118,8 +129,9 @@ class HDResources:
     def _verify(self, directory, entries, *, records=None, subset=False, extras=(), phase="校验 HD"):
         before = self._inventory(directory, entries, subset=subset, extras=extras)
         selected = [e for e in entries if e["name"] in before]
+        self._progress(phase, 0, len(selected), "")
         for i, entry in enumerate(selected, 1):
-            md5, sha = self._hashes(directory / entry["name"])
+            md5, sha = self._hashes(directory / entry["name"], phase)
             if md5 != entry["md5"] or (records is not None and sha != records[entry["name"]]["sha256"]):
                 raise ToolError(f"资源校验失败：{entry['name']}；原有备份保留。")
             self._progress(phase, i, len(selected), entry["name"])
@@ -145,12 +157,16 @@ class HDResources:
         before = signature(source)
         no_links(target)
         md5, sha = hashlib.md5(), hashlib.sha256()
+        progress = FileProgress(self.m.event, "复制 HD 基础包", source, entry["size"])
+        count = 0
         with source.open("rb") as src, target.open("xb") as dst:
             while block := src.read(4 * 1024 * 1024):
                 check_cancel(self.m.cancel)
                 dst.write(block)
                 md5.update(block)
                 sha.update(block)
+                count += len(block)
+                progress(count)
             dst.flush()
             os.fsync(dst.fileno())
         if (signature(source) != before or target.stat().st_size != entry["size"]
@@ -171,7 +187,7 @@ class HDResources:
         if (not isinstance(data, dict) or data.get("algorithm") != "SHA256"
                 or data.get("source_backup_hashes_matched") is not True
                 or data.get("file_count") != len(expected) or data.get("total_bytes") != self.total
-                or data.get("version", VERSION) != VERSION
+                or data.get("version", RESOURCE_VERSION) != RESOURCE_VERSION
                 or not isinstance(data.get("source"), str)
                 or canonical(data["source"]) != self.hd or not isinstance(data.get("files"), list)):
             raise ToolError("备份清单与当前游戏或 HD 版本不匹配。请选择本工具生成的备份批次目录。")
@@ -248,7 +264,7 @@ class HDResources:
                 raise ToolError("备份期间 HD 或 UHD 资源发生变化；备份保留，未移除 HD。")
             self.m.verify_preserved(protected)
             self.m.idle()
-            manifest = {"schema": 1, "version": VERSION, "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            manifest = {"schema": 1, "version": RESOURCE_VERSION, "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                         "source": str(self.hd), "backup": str(destination), "file_count": len(records),
                         "total_bytes": self.total, "algorithm": "SHA256",
                         "source_backup_hashes_matched": True, "files": records}

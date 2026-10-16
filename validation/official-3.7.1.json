@@ -1,0 +1,30 @@
+{
+  "verified_at_utc": "2026-10-16T08:36:06.270044+00:00",
+  "official_version": "3.7.1",
+  "resource_identity_version": "3.7.0",
+  "real_game_modified": false,
+  "resource_payload_downloaded": false,
+  "packs": {
+    "uhd": {
+      "same_payloads_as_canonical_manifest": true,
+      "files": 100,
+      "index_file": "launcher/game/G152/10003/3.7.1/e1cbb4d02e3f4b42819ad7ab2012124c/uhd/indexFile.json",
+      "index_md5": "acd063316414e10eba1edd2cf14cbbd2",
+      "bytes": 66036274508
+    },
+    "hd": {
+      "same_payloads_as_canonical_manifest": true,
+      "files": 100,
+      "index_file": "launcher/game/G152/10003/3.7.1/e1cbb4d02e3f4b42819ad7ab2012124c/hd/indexFile.json",
+      "index_md5": "c037fc4473067132c34ed30acb6e66f7",
+      "bytes": 45713445823
+    },
+    "common": {
+      "current_core_profile_matches": true,
+      "files": 816,
+      "index_file": "launcher/game/G152/10003/3.7.1/e1cbb4d02e3f4b42819ad7ab2012124c/common/indexFile.json",
+      "index_md5": "34f68bddd3fbd2c111ca5ebccf4b1e79",
+      "bytes": 40745536715
+    }
+  }
+}

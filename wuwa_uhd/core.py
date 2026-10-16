@@ -19,10 +19,14 @@ import urllib.parse
 import urllib.request
 import uuid
 
-VERSION = "3.7.0"
+VERSION = "3.7.1"
+# 3.7.1 republishes the same HD/UHD payloads. Keep their canonical identity
+# stable so existing ownership markers, resumable caches and backups still match.
+RESOURCE_VERSION = "3.7.0"
 MANIFEST_MD5 = "bb8104efa17446c5cac8f35f1593fe59"
 HD_MANIFEST_MD5 = "4f062fb8220bde7ef45707746869750b"
-PACK_PATH = "launcher/game/G152/10003/3.7.0/983fc4b836c240319aa3a0fc2c9f8514/"
+ONLINE_MANIFEST_MD5 = "acd063316414e10eba1edd2cf14cbbd2"
+PACK_PATH = "launcher/game/G152/10003/3.7.1/e1cbb4d02e3f4b42819ad7ab2012124c/"
 INDEX_PATH = "launcher/game/10003_oLNgHF1CESo51DGHN2odtp40e3oI1HfZ/G152/official/index.json"
 CONFIG_HOSTS = (
     "https://prod-volcdn-gamestarter.kurogame.xyz/",
@@ -35,11 +39,17 @@ CDNS = (
     "https://pcdownload-qcloud.aki-game.com/",
 )
 ALLOWED_HOSTS = {urllib.parse.urlsplit(u).hostname for u in CONFIG_HOSTS + CDNS}
-CORE_FILES = {
+LEGACY_CORE_FILES = {
     "Client/Binaries/Win64/Client-Win64-Shipping.exe": (169828120, "587e3e09018f3ab320f5e8c1da6bfa81"),
     "Client/Binaries/Win64/Client-Win64-ShippingBase.dll": (38673736, "5aa83a185ca0c85513063869847229b8"),
     "Wuthering Waves.exe": (484040, "c8d13bdca9f2c2a997800b8c71769db3"),
 }
+CORE_FILES = {
+    "Client/Binaries/Win64/Client-Win64-Shipping.exe": (169825048, "4f87376605fc5d501c06df6a76377714"),
+    "Client/Binaries/Win64/Client-Win64-ShippingBase.dll": (38673736, "5aa83a185ca0c85513063869847229b8"),
+    "Wuthering Waves.exe": (484040, "433e46e52bdc67ce2f329da746981f54"),
+}
+CLIENT_PROFILES = {"3.7.0": LEGACY_CORE_FILES, VERSION: CORE_FILES}
 CHANNEL_FILES = (
     "Client/Binaries/Win64/ThirdParty/KrPcSdk_Mainland/KRSDKRes/KRSDKConfig.json",
     "Client/Binaries/Win64/ThirdParty/KrPcSdk_Mainland/KRSDKEx.dll",
@@ -81,14 +91,18 @@ def no_links(path):
     return path
 
 
-def hash_file(path, algorithm="md5", cancel=None):
+def hash_file(path, algorithm="md5", cancel=None, progress=None):
     no_links(path)
     h = hashlib.new(algorithm)
+    count = 0
     with open(path, "rb") as stream:
         while block := stream.read(4 * 1024 * 1024):
             if cancel is not None:
                 check_cancel(cancel)
             h.update(block)
+            count += len(block)
+            if progress:
+                progress(count)
     return h.hexdigest()
 
 
@@ -187,7 +201,7 @@ def parse_manifest(raw, expected=MANIFEST_MD5, bundle="UHD"):
 def bundled_manifest(bundle="UHD"):
     if bundle not in {"HD", "UHD"}:
         raise ToolError("未知资源档位。")
-    return (Path(__file__).parent / "data" / f"{bundle.lower()}-3.7.0.json").read_bytes()
+    return (Path(__file__).parent / "data" / f"{bundle.lower()}-{RESOURCE_VERSION}.json").read_bytes()
 
 
 def processes_for_game(root):
@@ -275,14 +289,17 @@ def exclusive_lock(path):
 class Manager:
     def __init__(self, game, *, manifest=None, expected_md5=MANIFEST_MD5,
                  core_files=None, transport=None, guard=None, event=None, cancel=None,
-                 hd_manifest=None, hd_expected_md5=HD_MANIFEST_MD5):
+                 hd_manifest=None, hd_expected_md5=HD_MANIFEST_MD5,
+                 online_manifest_md5=ONLINE_MANIFEST_MD5):
         self.root = canonical(game)
         self.manifest_raw = bundled_manifest() if manifest is None else manifest
         self.manifest_md5 = expected_md5
+        self.online_manifest_md5 = online_manifest_md5
         self.entries = parse_manifest(self.manifest_raw, expected_md5)
         self.hd_entries = parse_manifest(bundled_manifest("HD") if hd_manifest is None else hd_manifest,
                                          hd_expected_md5, "HD")
         self.core_files = CORE_FILES if core_files is None else core_files
+        self.core_profiles = CLIENT_PROFILES if core_files is None else {VERSION: core_files}
         self.transport = transport or OfficialTransport()
         self.guard = guard or processes_for_game
         self.event = event or (lambda value: None)
@@ -297,18 +314,26 @@ class Manager:
         self._progress_lock = threading.Lock()
         self._received = {}
         self._last_progress = 0.0
+        self._network_bytes = 0
 
     def tell(self, text):
         self.event({"kind": "log", "text": text})
 
-    def progress(self, name, size, force=False):
+    def progress(self, name, size, force=False, transferred=0):
         with self._progress_lock:
             self._received[name] = size
+            self._network_bytes += transferred
             now = time.monotonic()
             if force or now - self._last_progress >= 0.2:
                 self._last_progress = now
                 self.event({"kind": "progress", "current": sum(self._received.values()),
-                            "total": self.total, "file": name})
+                            "total": self.total, "file": name, "network_bytes": self._network_bytes})
+
+    def hash(self, path, algorithm="md5", phase="校验文件"):
+        from .progress import FileProgress
+        path = no_links(path)
+        return hash_file(path, algorithm, self.cancel,
+                         FileProgress(self.event, phase, path, path.stat().st_size))
 
     def check_root(self, hashes=True, allow_missing_resources=False):
         if str(self.root).startswith("\\\\"):
@@ -319,12 +344,20 @@ class Manager:
         if (not self.root.is_dir() or (not allow_missing_resources
                 and not (self.root / "Client/Content/HD").is_dir() and not self.target.is_dir())):
             raise ToolError("请选择含 HD 或 UHD 资源的游戏根目录，其中应包含 Client 和 Wuthering Waves.exe。")
-        for rel, (size, digest) in self.core_files.items():
+        actual = {}
+        for rel in self.core_files:
             path = no_links(self.root / rel)
-            if not path.is_file() or path.stat().st_size != size:
-                raise ToolError(f"客户端版本不匹配：{rel}。工具仅支持已核验的 3.7.0 基础客户端。")
-            if hashes and hash_file(path, cancel=self.cancel) != digest:
-                raise ToolError(f"客户端校验不匹配：{rel}。请勿在其他版本或改动过的客户端上使用。")
+            if not path.is_file():
+                raise ToolError(f"客户端文件缺失：{rel}。请选择完整的游戏目录。")
+            size = path.stat().st_size
+            if not any(profile[rel][0] == size for profile in self.core_profiles.values()):
+                raise ToolError(f"客户端版本不匹配：{rel}。仅支持已核验的 3.7.0 / 3.7.1 基础客户端。")
+            actual[rel] = (size, self.hash(path, phase="校验客户端核心") if hashes else None)
+        for version, profile in self.core_profiles.items():
+            if all(actual[rel][0] == size and (not hashes or actual[rel][1] == digest)
+                   for rel, (size, digest) in profile.items()):
+                return version
+        raise ToolError("客户端校验不匹配。请勿混用不同版本的核心程序，或在改动过的客户端上使用。")
 
     def idle(self):
         running = self.guard(self.root)
@@ -337,7 +370,7 @@ class Manager:
         state = load_json(self.state_path)
         if (not isinstance(state, dict) or state.get("schema") != 1
                 or state.get("game_root") != str(self.root)
-                or state.get("version") != VERSION
+                or state.get("version") != RESOURCE_VERSION
                 or state.get("manifest_md5") != self.manifest_md5
                 or state.get("status") not in STATUSES
                 or not re.fullmatch(r"[0-9a-f]{32}", str(state.get("owner", "")))):
@@ -380,7 +413,7 @@ class Manager:
             try:
                 obj = json.loads(self.transport.metadata(host + INDEX_PATH))
                 pack = obj["resourcePacks"]["uhd"]
-                if (pack["version"] != VERSION or pack["indexFileMd5"] != self.manifest_md5
+                if (pack["version"] != VERSION or pack["indexFileMd5"] != self.online_manifest_md5
                         or pack["indexFile"] != PACK_PATH + "uhd/indexFile.json"
                         or pack["baseUrl"] != PACK_PATH + "zip/"
                         or int(pack["size"]) != self.total
@@ -395,7 +428,7 @@ class Manager:
 
     def inspect(self, online=True):
         self.tell("正在只读核对客户端版本与现有目录……")
-        self.check_root()
+        client_version = self.check_root()
         state = self.read_state()
         if self.target.exists():
             if state is None:
@@ -405,7 +438,8 @@ class Manager:
         if online:
             self.online_check()
         free = shutil.disk_usage(self.root.parent).free
-        return {"game_root": str(self.root), "version": VERSION,
+        return {"game_root": str(self.root), "version": client_version,
+                "official_version": VERSION, "resource_version": RESOURCE_VERSION,
                 "status": state["status"] if state else "not_installed",
                 "files": len(self.entries), "download_bytes": self.total,
                 "free_bytes": free, "cache_directory": str(self.work),
@@ -423,6 +457,10 @@ class Manager:
     def restore_hd(self, backup_directory):
         return self.hd_resources().restore(backup_directory)
 
+    def inspect_hd_backup(self, backup_directory, verify=False):
+        from .backup_inspection import inspect_backup
+        return inspect_backup(self, backup_directory, verify=verify)
+
     def prepare_delete_hd_backup(self, backup_directory):
         from .hd_backup_delete import BackupDeletion
         return BackupDeletion(self).prepare(backup_directory)
@@ -435,7 +473,7 @@ class Manager:
         snapshot = {}
         for rel in (*self.core_files, *CHANNEL_FILES):
             path = no_links(self.root / rel)
-            snapshot[rel] = hash_file(path, "sha256", self.cancel) if path.is_file() else None
+            snapshot[rel] = self.hash(path, "sha256", "核对程序与渠道文件") if path.is_file() else None
         return snapshot
 
     def verify_preserved(self, snapshot):
@@ -474,7 +512,7 @@ class Manager:
         part = no_links(self.parts / (name + ".part"))
         if target.exists():
             self.tell("校验缓存：" + name)
-            if target.stat().st_size == size and hash_file(target, cancel=self.cancel) == digest:
+            if target.stat().st_size == size and self.hash(target, phase="校验 UHD 缓存") == digest:
                 self.progress(name, size, True)
                 return
             raise ToolError(f"已完成的缓存文件损坏：{name}。已停止，不自动覆盖它。")
@@ -486,7 +524,7 @@ class Manager:
             self.progress(name, offset)
             if offset == size:
                 self.tell("验证完整 MD5：" + name)
-                if hash_file(part, cancel=self.cancel) == digest:
+                if self.hash(part, phase="校验 UHD 断点文件") == digest:
                     no_links(target)
                     os.rename(part, target)
                     self.progress(name, size, True)
@@ -530,14 +568,14 @@ class Manager:
                                 raise ToolError("服务器返回的数据超过清单大小。")
                             stream.write(block)
                             position += len(block)
-                            self.progress(name, position)
+                            self.progress(name, position, transferred=len(block))
                         stream.flush()
                         os.fsync(stream.fileno())
                     if position != size:
                         raise OSError("下载提前结束，将续传")
                 # Verify now as well as at the beginning of a resumed attempt.
                 self.tell("验证完整 MD5：" + name)
-                if hash_file(part, cancel=self.cancel) != digest:
+                if self.hash(part, phase="校验下载文件 MD5") != digest:
                     part.unlink()
                     self.progress(name, 0, True)
                     raise OSError("内容 MD5 不匹配，将更换官方 CDN")
@@ -578,7 +616,7 @@ class Manager:
                 raise ToolError("记录显示 UHD 已启用，但目录缺失。请保留缓存并检查游戏目录。")
             if state is None:
                 state = {"schema": 1, "owner": uuid.uuid4().hex, "game_root": str(self.root),
-                         "version": VERSION, "manifest_md5": self.manifest_md5}
+                         "version": RESOURCE_VERSION, "manifest_md5": self.manifest_md5}
             self.save_state(state, "downloading")
             before = self.preserved()
             for folder in (self.cache, self.parts):

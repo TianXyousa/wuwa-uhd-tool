@@ -11,7 +11,7 @@ import threading
 import unittest
 from unittest import mock
 
-from .core import (CORE_FILES, MANIFEST_MD5, MARKER, PACK_PATH, VERSION, Cancelled,
+from .core import (CORE_FILES, MANIFEST_MD5, MARKER, PACK_PATH, RESOURCE_VERSION, VERSION, Cancelled,
                    Manager, ToolError, atomic_json, bundled_manifest, exclusive_lock,
                    no_links, parse_manifest, validate_url)
 
@@ -111,7 +111,7 @@ class GameFixture(unittest.TestCase):
         return Manager(self.root, manifest=self.raw, expected_md5=self.digest,
                        hd_manifest=self.hd_raw, hd_expected_md5=self.hd_digest,
                        core_files=self.core, transport=self.transport, guard=lambda root: [],
-                       event=self.events.append, **kwargs)
+                       event=self.events.append, online_manifest_md5=self.digest, **kwargs)
 
     def snapshot(self):
         return {str(p.relative_to(self.root)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -123,7 +123,7 @@ class GameFixture(unittest.TestCase):
         self.m.parts.mkdir()
         self.m.cache.mkdir()
         state = {"schema": 1, "owner": "a" * 32, "game_root": str(self.root),
-                 "version": VERSION, "manifest_md5": self.digest}
+                 "version": RESOURCE_VERSION, "manifest_md5": self.digest}
         self.m.save_state(state, "downloading")
         (self.m.parts / (name + ".part")).write_bytes(self.files[name][:count])
         return name
@@ -432,9 +432,11 @@ class AcceptanceTests(GameFixture):
 def run_tests():
     from .selftest_hd import HDTests
     from .selftest_hd_delete import HDDeleteTests
+    from .selftest_local import LocalPreviewTests
+    from .selftest_update import UpdateTests
     stream = io.StringIO()
     suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case)
-                               for case in (AcceptanceTests, HDTests, HDDeleteTests))
+                               for case in (AcceptanceTests, HDTests, HDDeleteTests, LocalPreviewTests, UpdateTests))
     result = unittest.TextTestRunner(stream=stream, verbosity=2).run(suite)
     return {"ok": result.wasSuccessful(), "tests_run": result.testsRun,
             "failures": len(result.failures), "errors": len(result.errors),
