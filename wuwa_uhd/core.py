@@ -49,7 +49,13 @@ CORE_FILES = {
     "Client/Binaries/Win64/Client-Win64-ShippingBase.dll": (38673736, "5aa83a185ca0c85513063869847229b8"),
     "Wuthering Waves.exe": (484040, "433e46e52bdc67ce2f329da746981f54"),
 }
-CLIENT_PROFILES = {"3.7.0": LEGACY_CORE_FILES, VERSION: CORE_FILES}
+WEGAME_CORE_FILES = {
+    "Client/Binaries/Win64/Client-Win64-Shipping.exe": (169819416, "060aa84f3a49cdabfbf2b9a89597d752"),
+    "Client/Binaries/Win64/Client-Win64-ShippingBase.dll": (38673736, "5aa83a185ca0c85513063869847229b8"),
+    "Wuthering Waves.exe": (484040, "572b00f7e0bf13aa1f5174d32de0bc6e"),
+}
+CLIENT_PROFILES = {"3.7.0": LEGACY_CORE_FILES, VERSION: CORE_FILES,
+                   "3.7.1 (WeGame)": WEGAME_CORE_FILES}
 CHANNEL_FILES = (
     "Client/Binaries/Win64/ThirdParty/KrPcSdk_Mainland/KRSDKRes/KRSDKConfig.json",
     "Client/Binaries/Win64/ThirdParty/KrPcSdk_Mainland/KRSDKEx.dll",

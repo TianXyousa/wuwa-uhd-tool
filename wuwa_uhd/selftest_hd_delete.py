@@ -212,6 +212,7 @@ class HDDeleteTests(GameFixture):
             app.start.assert_not_called()
             self.assertEqual(final.call_args.kwargs["default"], "no")
             self.assertIn("正常游玩", final.call_args.args[1])
+            self.assertIn("WeGame 后续更新可能重新下载", final.call_args.args[1])
             final.return_value = True
             app.confirm_prepared_backup_delete(plan)
             app.start.assert_called_once_with("delete_hd_backup", plan, True)

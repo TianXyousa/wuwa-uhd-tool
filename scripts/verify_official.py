@@ -7,7 +7,9 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from wuwa_uhd.core import (CDNS, CONFIG_HOSTS, CORE_FILES, INDEX_PATH, Manager,
-                           RESOURCE_VERSION, VERSION, parse_manifest)
+                           RESOURCE_VERSION, VERSION, WEGAME_CORE_FILES, parse_manifest)
+
+CHANNEL_INDEX_PATH = "launcher/game/G152/10004_j5GWFuUFlb8N31Wi2uS3ZAVHcb7ZGN7y/index.json"
 
 
 def main():
@@ -51,6 +53,37 @@ def main():
             detail = {"current_core_profile_matches": True, "files": len(actual)}
         report["packs"][label] = dict(detail, index_file=pack["indexFile"],
                                      index_md5=pack["indexFileMd5"], bytes=pack["size"])
+    channel = None
+    for host in CONFIG_HOSTS:
+        try:
+            channel = json.loads(transport.metadata(host + CHANNEL_INDEX_PATH))
+            break
+        except (OSError, ValueError):
+            continue
+    if channel is None:
+        raise RuntimeError("Official channel index unavailable")
+    pack = channel["default"]["config"]
+    if pack["version"] != VERSION:
+        raise RuntimeError("Channel version changed; recheck the WeGame profile")
+    raw = None
+    for host in CDNS:
+        try:
+            raw = transport.metadata(host + pack["indexFile"])
+            break
+        except OSError:
+            continue
+    if raw is None or hashlib.md5(raw).hexdigest() != pack["indexFileMd5"]:
+        raise RuntimeError("Channel manifest hash failed")
+    actual = {e["dest"]: (e["size"], e["md5"]) for e in json.loads(raw)["resource"]}
+    if any(actual.get(path) != expected for path, expected in WEGAME_CORE_FILES.items()):
+        raise RuntimeError("Pinned WeGame core profile differs from the official Bilibili channel manifest")
+    if any(actual.get(e["dest"]) != (e["size"], e["md5"]) for e in manager.hd_entries):
+        raise RuntimeError("Channel HD payloads differ from the canonical manifest")
+    report["wegame_core_evidence"] = {
+        "source": "Bilibili official channel manifest; these three core files also matched the local updated WeGame client",
+        "version": pack["version"], "index_file": pack["indexFile"],
+        "index_md5": pack["indexFileMd5"], "core_profile_matches": True,
+        "canonical_hd_files_matched": len(manager.hd_entries), "bilibili_runtime_verified": False}
     manager.online_check()
     print(json.dumps(report, ensure_ascii=False, indent=2))
 

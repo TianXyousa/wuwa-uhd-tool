@@ -1,5 +1,5 @@
 {
-  "verified_at_utc": "2026-10-16T08:36:06.270044+00:00",
+  "verified_at_utc": "2026-10-16T15:04:12.027566+00:00",
   "official_version": "3.7.1",
   "resource_identity_version": "3.7.0",
   "real_game_modified": false,
@@ -26,5 +26,14 @@
       "index_md5": "34f68bddd3fbd2c111ca5ebccf4b1e79",
       "bytes": 40745536715
     }
+  },
+  "wegame_core_evidence": {
+    "source": "Bilibili official channel manifest; these three core files also matched the local updated WeGame client",
+    "version": "3.7.1",
+    "index_file": "launcher/game/G152/10004/3.7.1/dcrBseShtWqAcvzNvhuTjoSYGMDXVltP/resource/10004/3.7.1/indexFile.json",
+    "index_md5": "e1dd02148d9b6e24f6a7bfadef198d52",
+    "core_profile_matches": true,
+    "canonical_hd_files_matched": 100,
+    "bilibili_runtime_verified": false
   }
 }

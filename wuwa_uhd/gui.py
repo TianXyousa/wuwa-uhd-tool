@@ -17,13 +17,17 @@ MUTED = "#59677b"
 ACCENT = "#2563eb"
 DANGER = "#b91c1c"
 DELETE_HD_WARNING = "危险：确认 UHD 能正常运行后再删除！删除后无法从这份备份恢复。"
+WEGAME_HD_WARNING = (
+    "建议保留 HD：若移除游戏内的 HD，WeGame 后续更新可能重新下载约 45.71 GB（42.57 GiB）的 HD 资源。"
+)
 WEGAME_LAUNCH_GUIDE = (
     "1. 等待 UHD 资源下载并校验完成。\n"
     "2. 打开 WeGame 中鸣潮的启动参数设置，保留原有参数，追加：\n\n"
     "    -krqlv=uhd\n\n"
     "3. 保存后，从 WeGame 启动鸣潮，再在游戏中选择极致画质。\n\n"
     "用户已实测此方式可启动 UHD 并切换极致画质。\n"
-    "启动后需完成游戏内更新，本机曾提示约 7.9 GB；视频由游戏另行下载。\n"
+    "启动后仍需完成游戏内更新，可能包含 UHD 补丁或视频，大小以游戏提示为准。\n"
+    "默认保留 HD；移除游戏内 HD 后，WeGame 更新可能将它重新下载。\n"
     "若已移除 HD 基础资源，请先恢复 HD 备份，再执行回退。\n"
     "回退到 HD 后，请在 WeGame 中移除 -krqlv=uhd，再从 WeGame 启动。\n"
     "工具不会自动修改 WeGame 设置；游戏可能继续下载热更新和视频。"
@@ -42,7 +46,8 @@ class HDBackupDeleteDialog(simpledialog.Dialog):
         text = (f"所选备份：\n{self.plan['backup_directory']}\n\n"
                 f"将永久删除 {self.plan['file_count']} 个 HD 资源文件，约 {self.plan['bytes']/2**30:.2f} GiB。\n"
                 "删除不经过回收站，工具无法撤销。以后需要 HD 时，须另找完整备份或重新下载。\n"
-                "只处理该批次的 HD 基础包，清单与删除记录保留。")
+                "只处理该批次的 HD 基础包，清单与删除记录保留。\n\n"
+                + WEGAME_HD_WARNING + "\n删除外部备份本身不会移除游戏内的 HD。")
         tk.Label(master, text=text, font=("Microsoft YaHei UI", 10), wraplength=700,
                  justify="left").pack(anchor="w", padx=16, pady=(0, 12))
         self.checkbox = tk.Checkbutton(master, variable=self.confirmed, fg=DANGER, activeforeground=DANGER,
@@ -159,7 +164,7 @@ class App:
         self.wegame_button.pack(side="left", padx=(0, 8))
         self.copy_parameter_button = ttk.Button(secondary, text="复制 -krqlv=uhd", command=self.copy_parameter)
         self.copy_parameter_button.pack(side="left")
-        ttk.Label(resources, text="资源就绪后，从 WeGame 添加上述参数并启动。游戏内还需热更新，\n本机曾提示约 7.9 GB；视频由游戏另行下载。回退前须恢复完整 HD。",
+        ttk.Label(resources, text="资源就绪后，通过 WeGame 添加参数并启动；游戏内继续完成热更新。\n热更新可能包含 UHD 补丁或视频，大小以游戏提示为准。默认保留 HD。",
                   style="Muted.TLabel", justify="left").pack(anchor="w")
         ttk.Label(backups, text="当前 HD 备份批次（可复制路径；并非全盘备份清单）").pack(anchor="w")
         backup_row = ttk.Frame(backups)
@@ -181,6 +186,8 @@ class App:
         self.open_backup_button.pack(side="left")
         ttk.Label(backups, text="约 42.57 GiB · 备份优先选其他磁盘；同盘备份不会减少该磁盘总占用。",
                   style="Muted.TLabel").pack(anchor="w", pady=(8, 0))
+        ttk.Label(backups, text=WEGAME_HD_WARNING, style="Danger.TLabel",
+                  wraplength=int(810*self.scale), justify="left").pack(anchor="w", pady=(8, 0))
         cache_row = ttk.Frame(cleanup)
         cache_row.pack(fill="x", pady=(0, 10))
         self.cache_button = ttk.Button(cache_row, text="打开缓存目录", command=self.open_cache)
@@ -197,6 +204,8 @@ class App:
                   wraplength=int(580*self.scale)).pack(side="left")
         ttk.Label(cleanup, text="删除时重新选择具体备份批次，并保留两次确认；不会清理整个备份磁盘。",
                   style="Muted.TLabel").pack(anchor="w")
+        ttk.Label(cleanup, text=WEGAME_HD_WARNING, style="Danger.TLabel",
+                  wraplength=int(810*self.scale), justify="left").pack(anchor="w", pady=(8, 0))
         self.buttons = [self.check_button, self.apply_button, self.rollback_button,
                         self.wegame_button, self.cache_button, self.clear_button, self.browse_button,
                         self.remove_hd_button, self.restore_hd_button, self.delete_hd_backup_button,
@@ -477,6 +486,7 @@ class App:
                 f"即将永久删除：\n{plan['backup_directory']}\\HD\n\n"
                 f"{plan['file_count']} 个文件，约 {plan['bytes']/2**30:.2f} GiB。\n"
                 "删除不进回收站，无法撤销；这份备份将不能再用于恢复或回退 HD。\n\n"
+                + WEGAME_HD_WARNING + "\n\n"
                 "确认正常运行且不再需要此备份，才选择“是”。")
         if messagebox.askyesno("第二次确认 · 确认正常运行后才删除", text, parent=self.root,
                                icon=messagebox.WARNING, default=messagebox.NO):
@@ -485,7 +495,7 @@ class App:
             self.status.set("已取消删除 · 备份保留")
 
     def confirm_apply(self):
-        if messagebox.askokcancel("下载并添加 UHD", "将从库洛官方服务器下载约 66.04 GB 基础资源。\n\n仅在全部校验通过后添加 UHD 目录，不覆盖 HD、程序或 WeGame 渠道文件，也不自动启动游戏。\n\n可以暂停续传；安装后可以回退。继续？", parent=self.root):
+        if messagebox.askokcancel("下载并添加 UHD", "将从库洛官方服务器下载约 66.04 GB 基础资源。\n\n默认保留 HD。仅在全部校验通过后添加 UHD 目录，不覆盖 HD、程序或 WeGame 渠道文件，也不自动启动游戏。\n\n游戏内仍可能更新 UHD 补丁和视频，大小以游戏提示为准。可以暂停续传；安装后可以回退。继续？", parent=self.root):
             self.start("apply")
 
     def confirm_rollback(self):
@@ -495,7 +505,12 @@ class App:
     def confirm_remove_hd(self):
         if self.busy:
             return
-        if not messagebox.askokcancel("备份并移除 HD 基础资源", "请先确认 UHD 能正常游玩，然后退出游戏及更新程序。\n\n工具会先校验 UHD，复制约 45.71 GB 的 HD 基础包并核对 SHA256，全部通过后才移除游戏内的 HD。\n\n请选择游戏目录之外的备份位置，优先选其他磁盘；备份放在同一磁盘不会节省该磁盘的总空间。视频和热更新不在本次移除范围内。\n\n移除后继续使用 -krqlv=uhd；切回 HD 前必须恢复备份。继续？", parent=self.root):
+        text = (WEGAME_HD_WARNING + "\n\n请先确认 UHD 能正常游玩，然后退出游戏及更新程序。\n\n"
+                "工具会先校验 UHD，复制约 45.71 GB 的 HD 基础包并核对 SHA256，全部通过后才移除游戏内的 HD。\n\n"
+                "请选择游戏目录之外的备份位置，优先选其他磁盘；备份放在同一磁盘不会节省该磁盘的总空间。"
+                "视频和热更新不在本次移除范围内。\n\n移除后继续使用 -krqlv=uhd；切回 HD 前必须恢复备份。继续？")
+        if not messagebox.askokcancel("备份并移除 HD 基础资源", text, parent=self.root,
+                                     icon=messagebox.WARNING, default=messagebox.CANCEL):
             return
         folder = filedialog.askdirectory(title="选择 HD 备份存放位置（建议其他磁盘）", parent=self.root)
         if folder:
